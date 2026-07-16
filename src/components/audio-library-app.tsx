@@ -32,11 +32,16 @@ function NavButton({ active, symbol, label, onClick }: { active: boolean; symbol
   return <button className={active ? "nav-button active" : "nav-button"} onClick={onClick} aria-current={active ? "page" : undefined}><span aria-hidden="true">{symbol}</span>{label}</button>;
 }
 
+function PlayerSpinner() {
+  return <span className="player-spinner" aria-hidden="true" />;
+}
+
 export function AudioLibraryApp() {
   const router = useRouter();
   const audioRef = useRef<HTMLAudioElement>(null);
   const pendingAutoplay = useRef(false);
   const lastSavedSecond = useRef(-1);
+  const loadingMessageTimer = useRef<number | undefined>(undefined);
   const [library, setLibrary] = useState<LibraryResponse | null>(null);
   const [localState, setLocalState] = useState<LocalPlayerState>(EMPTY_PLAYER_STATE);
   const [ready, setReady] = useState(false);
@@ -49,6 +54,26 @@ export function AudioLibraryApp() {
   const [position, setPosition] = useState(0);
   const [duration, setDuration] = useState(0);
   const [message, setMessage] = useState("");
+  const [audioLoading, setAudioLoading] = useState(false);
+  const [slowLoading, setSlowLoading] = useState(false);
+
+  const startAudioLoading = useCallback(() => {
+    setAudioLoading(true);
+    if (loadingMessageTimer.current !== undefined) return;
+    setSlowLoading(false);
+    loadingMessageTimer.current = window.setTimeout(() => setSlowLoading(true), 2000);
+  }, []);
+
+  const stopAudioLoading = useCallback(() => {
+    if (loadingMessageTimer.current !== undefined) window.clearTimeout(loadingMessageTimer.current);
+    loadingMessageTimer.current = undefined;
+    setAudioLoading(false);
+    setSlowLoading(false);
+  }, []);
+
+  useEffect(() => () => {
+    if (loadingMessageTimer.current !== undefined) window.clearTimeout(loadingMessageTimer.current);
+  }, []);
 
   useEffect(() => {
     Promise.all([
@@ -136,6 +161,15 @@ export function AudioLibraryApp() {
     window.setTimeout(() => setMessage(""), 4200);
   }
 
+  function requestAudioPlay(audio: HTMLAudioElement) {
+    startAudioLoading();
+    void audio.play().catch(() => {
+      pendingAutoplay.current = false;
+      stopAudioLoading();
+      showMessage("瀏覽器暫時無法播放這個音檔。");
+    });
+  }
+
   function startEpisode(book: Book, episode: Episode, autoplay = true) {
     setActiveBookId(book.id);
     setActiveEpisodeId(episode.id);
@@ -147,9 +181,10 @@ export function AudioLibraryApp() {
       showMessage("目前是示範書庫；連接 Google Drive 後即可播放真實音訊。");
       return;
     }
+    if (autoplay) startAudioLoading();
     window.setTimeout(() => {
       audioRef.current?.load();
-      if (autoplay) void audioRef.current?.play().catch(() => undefined);
+      if (autoplay && audioRef.current) requestAudioPlay(audioRef.current);
     }, 0);
   }
 
@@ -165,7 +200,7 @@ export function AudioLibraryApp() {
     if (library?.source === "mock") return showMessage("示範書庫不含音檔；完成 Drive 設定後，播放與拖曳就會啟用。");
     const audio = audioRef.current;
     if (!audio) return;
-    if (audio.paused) void audio.play().catch(() => showMessage("瀏覽器暫時無法播放這個音檔。")); else audio.pause();
+    if (audio.paused) requestAudioPlay(audio); else audio.pause();
   }
 
   function seek(delta: number) {
@@ -221,7 +256,10 @@ export function AudioLibraryApp() {
                   <h2>{continueTarget.book.title}</h2>
                   <p>第 {continueTarget.episode.number} 集 · {continueTarget.episode.title}</p>
                   <div className="continue-progress"><span style={{ width: `${Math.min(100, ((localState.progress[continueTarget.episode.id]?.position ?? 0) / (localState.progress[continueTarget.episode.id]?.duration || continueTarget.episode.duration || 1)) * 100)}%` }} /></div>
-                  <button className="primary-button" onClick={() => startEpisode(continueTarget.book, continueTarget.episode, true)}><span>▶</span>{localState.progress[continueTarget.episode.id] ? "從上次進度繼續" : "開始收聽"}</button>
+                  <button className="primary-button" onClick={() => startEpisode(continueTarget.book, continueTarget.episode, true)} disabled={audioLoading && activeEpisodeId === continueTarget.episode.id} aria-busy={audioLoading && activeEpisodeId === continueTarget.episode.id}>
+                    {audioLoading && activeEpisodeId === continueTarget.episode.id ? <PlayerSpinner /> : <span>▶</span>}
+                    {audioLoading && activeEpisodeId === continueTarget.episode.id ? "正在載入" : localState.progress[continueTarget.episode.id] ? "從上次進度繼續" : "開始收聽"}
+                  </button>
                 </div>
               </section>
             )}
@@ -287,7 +325,7 @@ export function AudioLibraryApp() {
           </button>
           <div className="mini-controls">
             <button className="mini-skip" onClick={() => seek(-15)} aria-label="倒退 15 秒">↶<small>15</small></button>
-            <button className="play-button" onClick={togglePlay} aria-label={playing ? "暫停" : "播放"}>{playing ? "Ⅱ" : "▶"}</button>
+            <button className="play-button" onClick={togglePlay} disabled={audioLoading} aria-busy={audioLoading} aria-label={audioLoading ? "正在載入音訊" : playing ? "暫停" : "播放"}>{audioLoading ? <PlayerSpinner /> : playing ? "Ⅱ" : "▶"}</button>
             <button className="mini-skip" onClick={() => seek(30)} aria-label="快轉 30 秒">↷<small>30</small></button>
           </div>
           <div className="mini-timeline"><span style={{ width: `${duration ? position / duration * 100 : 0}%` }} /></div>
@@ -300,7 +338,7 @@ export function AudioLibraryApp() {
           <div className="full-cover"><BookCover book={activeBook} /></div>
           <div className="full-copy"><p>{activeBook.title}</p><h2>{activeEpisode.title}</h2><span>第 {activeEpisode.number} 集</span></div>
           <div className="scrubber"><input aria-label="播放位置" type="range" min="0" max={duration || 1} value={Math.min(position, duration || 1)} onChange={(event) => { const value = Number(event.target.value); if (audioRef.current) audioRef.current.currentTime = value; setPosition(value); }} /><div><span>{formatTime(position)}</span><span>-{formatTime(Math.max(0, duration - position))}</span></div></div>
-          <div className="full-controls"><button onClick={() => changeEpisode(-1)} aria-label="上一集">|◀</button><button onClick={() => seek(-15)} aria-label="倒退 15 秒">↶<small>15</small></button><button className="full-play" onClick={togglePlay}>{playing ? "Ⅱ" : "▶"}</button><button onClick={() => seek(30)} aria-label="快轉 30 秒">↷<small>30</small></button><button onClick={() => changeEpisode(1)} aria-label="下一集">▶|</button></div>
+          <div className="full-controls"><button onClick={() => changeEpisode(-1)} aria-label="上一集">|◀</button><button onClick={() => seek(-15)} aria-label="倒退 15 秒">↶<small>15</small></button><button className="full-play" onClick={togglePlay} disabled={audioLoading} aria-busy={audioLoading} aria-label={audioLoading ? "正在載入音訊" : playing ? "暫停" : "播放"}>{audioLoading ? <PlayerSpinner /> : playing ? "Ⅱ" : "▶"}</button><button onClick={() => seek(30)} aria-label="快轉 30 秒">↷<small>30</small></button><button onClick={() => changeEpisode(1)} aria-label="下一集">▶|</button></div>
           <label className="rate-control">播放速度<select value={localState.playbackRate} onChange={(event) => changeRate(Number(event.target.value))}>{[0.75, 1, 1.25, 1.5, 1.75, 2].map((rate) => <option key={rate} value={rate}>{rate}×</option>)}</select></label>
         </section>
       )}
@@ -309,12 +347,17 @@ export function AudioLibraryApp() {
         ref={audioRef}
         src={activeEpisode && library?.source === "drive" ? `/api/audio/${activeEpisode.id}` : undefined}
         preload="metadata"
-        onLoadedMetadata={(event) => { const audio = event.currentTarget; const restored = resumePosition(activeProgress); audio.currentTime = restored; audio.playbackRate = localState.playbackRate; setPosition(restored); setDuration(audio.duration); if (pendingAutoplay.current) { pendingAutoplay.current = false; void audio.play().catch(() => undefined); } }}
-        onPlay={() => setPlaying(true)} onPause={() => { setPlaying(false); commitProgress(); }}
+        onLoadedMetadata={(event) => { const audio = event.currentTarget; const restored = resumePosition(activeProgress); audio.currentTime = restored; audio.playbackRate = localState.playbackRate; setPosition(restored); setDuration(audio.duration); if (pendingAutoplay.current) { pendingAutoplay.current = false; requestAudioPlay(audio); } }}
+        onPlay={() => { pendingAutoplay.current = false; setPlaying(true); }}
+        onPlaying={() => { stopAudioLoading(); setPlaying(true); }}
+        onWaiting={() => startAudioLoading()}
+        onStalled={(event) => { if (!event.currentTarget.paused) startAudioLoading(); }}
+        onPause={() => { pendingAutoplay.current = false; stopAudioLoading(); setPlaying(false); commitProgress(); }}
         onTimeUpdate={(event) => { const audio = event.currentTarget; setPosition(audio.currentTime); setDuration(audio.duration); const second = Math.floor(audio.currentTime); if (second % 5 === 0 && second !== lastSavedSecond.current) { lastSavedSecond.current = second; commitProgress(); } }}
-        onEnded={() => { commitProgress(true); setPlaying(false); changeEpisode(1); }}
-        onError={() => showMessage("音訊讀取失敗，請檢查 Drive 權限或稍後再試。")}
+        onEnded={() => { stopAudioLoading(); commitProgress(true); setPlaying(false); changeEpisode(1); }}
+        onError={() => { pendingAutoplay.current = false; stopAudioLoading(); showMessage("音訊讀取失敗，請檢查 Drive 權限或稍後再試。"); }}
       />
+      {slowLoading && !message && <div className="toast audio-loading-toast" role="status"><PlayerSpinner />正在載入音訊…</div>}
       {message && <div className="toast" role="status">{message}</div>}
     </div>
   );
