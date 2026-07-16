@@ -285,9 +285,11 @@ export function AudioLibraryApp() {
             <div className="mini-cover"><BookCover book={activeBook} /></div>
             <span><b>{activeEpisode.title}</b><small>{activeBook.title}</small></span>
           </button>
-          <button className="mini-skip" onClick={() => seek(-15)} aria-label="倒退 15 秒">↶<small>15</small></button>
-          <button className="play-button" onClick={togglePlay} aria-label={playing ? "暫停" : "播放"}>{playing ? "Ⅱ" : "▶"}</button>
-          <button className="mini-skip" onClick={() => seek(30)} aria-label="快轉 30 秒">↷<small>30</small></button>
+          <div className="mini-controls">
+            <button className="mini-skip" onClick={() => seek(-15)} aria-label="倒退 15 秒">↶<small>15</small></button>
+            <button className="play-button" onClick={togglePlay} aria-label={playing ? "暫停" : "播放"}>{playing ? "Ⅱ" : "▶"}</button>
+            <button className="mini-skip" onClick={() => seek(30)} aria-label="快轉 30 秒">↷<small>30</small></button>
+          </div>
           <div className="mini-timeline"><span style={{ width: `${duration ? position / duration * 100 : 0}%` }} /></div>
         </div>
       )}
