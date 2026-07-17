@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { EMPTY_PLAYER_STATE, resumePosition, toggleBookFavorite, toggleEpisodeFavorite, upsertProgress } from "@/lib/progress-model";
 import { loadPlayerState, savePlayerState } from "@/lib/progress-store";
@@ -10,6 +10,10 @@ import { SyncControls } from "./sync-controls";
 import "./audio-library-app.css";
 
 type View = "home" | "library" | "favorites";
+type CommentType = "reflection" | "error_report" | "other";
+type CommentTarget =
+  | { targetType: "book"; book: Book }
+  | { targetType: "episode"; book: Book; episode: Episode };
 
 function formatTime(seconds = 0): string {
   if (!Number.isFinite(seconds)) return "0:00";
@@ -57,6 +61,10 @@ export function AudioLibraryApp() {
   const [message, setMessage] = useState("");
   const [audioLoading, setAudioLoading] = useState(false);
   const [slowLoading, setSlowLoading] = useState(false);
+  const [commentTarget, setCommentTarget] = useState<CommentTarget>();
+  const [commentType, setCommentType] = useState<CommentType>("reflection");
+  const [commentBody, setCommentBody] = useState("");
+  const [commentSubmitting, setCommentSubmitting] = useState(false);
 
   const startAudioLoading = useCallback(() => {
     setAudioLoading(true);
@@ -219,6 +227,42 @@ export function AudioLibraryApp() {
   function favoriteBook(id: string) { setLocalState((state) => toggleBookFavorite(state, id)); }
   function favoriteEpisode(id: string) { setLocalState((state) => toggleEpisodeFavorite(state, id)); }
 
+  function openComment(target: CommentTarget) {
+    setCommentTarget(target);
+    setCommentType(target.targetType === "episode" ? "error_report" : "reflection");
+    setCommentBody("");
+  }
+
+  async function submitComment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!commentTarget || commentBody.trim().length < 4) return;
+    setCommentSubmitting(true);
+    try {
+      const response = await fetch("/api/comments", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          targetType: commentTarget.targetType,
+          bookId: commentTarget.book.id,
+          bookTitle: commentTarget.book.title,
+          episodeId: commentTarget.targetType === "episode" ? commentTarget.episode.id : undefined,
+          episodeTitle: commentTarget.targetType === "episode" ? commentTarget.episode.title : undefined,
+          commentType,
+          body: commentBody,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(typeof data.error === "string" ? data.error : "留言送出失敗。");
+      setCommentTarget(undefined);
+      setCommentBody("");
+      showMessage("已收到留言，管理者會視情況整理。");
+    } catch (error) {
+      showMessage(error instanceof Error ? error.message : "留言送出失敗。");
+    } finally {
+      setCommentSubmitting(false);
+    }
+  }
+
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
     router.replace("/login");
@@ -301,7 +345,7 @@ export function AudioLibraryApp() {
         <div className="sheet-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedBookId(undefined); }}>
           <section className="book-sheet" aria-modal="true" role="dialog" aria-label={`${selectedBook.title}集數列表`}>
             <button className="sheet-close" onClick={() => setSelectedBookId(undefined)} aria-label="關閉">×</button>
-            <div className="sheet-hero"><div className="sheet-cover"><BookCover book={selectedBook} /></div><div><p className="section-kicker">{selectedBook.episodes.length} 集</p><h2>{selectedBook.title}</h2><p>{selectedBook.subtitle ?? "挑一集開始，播放器會替你記住每次停下的位置。"}</p><button className="heart-button" onClick={() => favoriteBook(selectedBook.id)}>{localState.favoriteBookIds.includes(selectedBook.id) ? "♥ 已收藏" : "♡ 收藏整本"}</button></div></div>
+            <div className="sheet-hero"><div className="sheet-cover"><BookCover book={selectedBook} /></div><div><p className="section-kicker">{selectedBook.episodes.length} 集</p><h2>{selectedBook.title}</h2><p>{selectedBook.subtitle ?? "挑一集開始，播放器會替你記住每次停下的位置。"}</p><div className="sheet-actions"><button className="heart-button" onClick={() => favoriteBook(selectedBook.id)}>{localState.favoriteBookIds.includes(selectedBook.id) ? "♥ 已收藏" : "♡ 收藏整本"}</button><button className="feedback-button" onClick={() => openComment({ targetType: "book", book: selectedBook })}>留言 / 回報</button></div></div></div>
             <div className="episode-list">
               {selectedBook.episodes.map((episode) => {
                 const progress = localState.progress[episode.id];
@@ -312,10 +356,29 @@ export function AudioLibraryApp() {
                     <span className="row-play" aria-hidden="true">▶</span>
                   </button>
                   <button className="row-favorite" onClick={() => favoriteEpisode(episode.id)} aria-label={localState.favoriteEpisodeIds.includes(episode.id) ? "移除單集收藏" : "收藏單集"}>{localState.favoriteEpisodeIds.includes(episode.id) ? "♥" : "♡"}</button>
+                  <button className="row-comment" onClick={() => openComment({ targetType: "episode", book: selectedBook, episode })} aria-label={`留言或回報 ${episode.title}`}>✎</button>
                 </div>;
               })}
             </div>
           </section>
+        </div>
+      )}
+
+      {commentTarget && (
+        <div className="comment-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setCommentTarget(undefined); }}>
+          <form className="comment-dialog" onSubmit={submitComment} aria-label="留言或錯誤回報">
+            <button type="button" className="comment-close" onClick={() => setCommentTarget(undefined)} aria-label="關閉">×</button>
+            <p className="section-kicker">{commentTarget.targetType === "episode" ? "單集回饋" : "書籍回饋"}</p>
+            <h2>{commentTarget.targetType === "episode" ? commentTarget.episode.title : commentTarget.book.title}</h2>
+            <small>{commentTarget.book.title}</small>
+            <label>留言類型<select value={commentType} onChange={(event) => setCommentType(event.target.value as CommentType)}>
+              <option value="reflection">感想</option>
+              <option value="error_report">重大錯誤回報</option>
+              <option value="other">其他</option>
+            </select></label>
+            <label>內容<textarea value={commentBody} onChange={(event) => setCommentBody(event.target.value.slice(0, 1000))} minLength={4} maxLength={1000} required placeholder="可以留下感想，也可以指出說書人理解錯誤、人物關係錯誤、章節重點偏掉等問題。" /></label>
+            <div className="comment-footer"><span>{commentBody.length}/1000</span><button type="submit" disabled={commentSubmitting || commentBody.trim().length < 4}>{commentSubmitting ? "送出中…" : "送出留言"}</button></div>
+          </form>
         </div>
       )}
 
