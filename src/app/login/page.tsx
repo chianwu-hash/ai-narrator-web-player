@@ -13,7 +13,7 @@ export default async function LoginPage() {
         <h1 id="login-title">AI 說書人</h1>
         <p className="login-copy">輸入管理者提供的認證碼，回到上次停下的地方。</p>
         <LoginForm />
-        <p className="login-note">收聽進度與最愛只會保存在這台裝置的這個瀏覽器。</p>
+        <p className="login-note">登入後可開啟跨設備同步；未開啟前，進度仍保存在這台裝置。</p>
       </section>
     </main>
   );

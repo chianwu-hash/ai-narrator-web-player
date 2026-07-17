@@ -234,7 +234,7 @@ export function AudioLibraryApp() {
           <NavButton active={view === "library"} symbol="▤" label="全部書籍" onClick={() => setView("library")} />
           <NavButton active={view === "favorites"} symbol="♥" label="我的最愛" onClick={() => setView("favorites")} />
         </nav>
-        <div className="side-note"><b>只存在這台裝置</b><span>進度與最愛不會跨裝置同步。</span></div>
+        <div className="side-note"><b>可跨設備同步</b><span>開啟同步後，進度與最愛會跟著已配對設備。</span></div>
         <button className="logout-button" onClick={logout}>登出</button>
       </aside>
 
