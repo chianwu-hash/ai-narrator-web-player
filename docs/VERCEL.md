@@ -24,7 +24,7 @@
 
 ## 3. 部署前檢查
 
-1. 在 Preview 環境先驗證正確／錯誤認證碼。
+1. 在 Preview 環境先驗證正確／錯誤邀請碼。
 2. 登入後確認顯示的資料夾、書名、EP02 與 EP10 排序。
 3. 在 Chrome Android 與 iOS Safari 實機測試播放、拖曳、鎖定畫面、背景播放與切集。
 4. 更改 `AUTH_VERSION`，確認舊 cookie 失效。

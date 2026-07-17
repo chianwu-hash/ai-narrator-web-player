@@ -33,11 +33,11 @@ export function LoginForm() {
 
   return (
     <form onSubmit={submit} className="login-form">
-      <label htmlFor="access-code">共用認證碼</label>
+      <label htmlFor="access-code">邀請碼</label>
       <input
         id="access-code" type="password" autoComplete="current-password" inputMode="text"
         value={code} onChange={(event) => setCode(event.target.value)} required autoFocus
-        placeholder="請輸入認證碼"
+        placeholder="請輸入邀請碼"
       />
       {error && <p className="login-error" role="alert">{error}</p>}
       <button type="submit" disabled={busy || !code}>{busy ? "驗證中…" : "進入書庫"}</button>

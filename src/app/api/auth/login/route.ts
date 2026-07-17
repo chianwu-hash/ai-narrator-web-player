@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({})) as { code?: string };
   if (!verifyAccessCode(body.code ?? "")) {
     recordFailedLogin(ip);
-    return NextResponse.json({ error: "認證碼不正確。" }, { status: 401 });
+    return NextResponse.json({ error: "邀請碼不正確。" }, { status: 401 });
   }
   clearLoginAttempts(ip);
   const response = NextResponse.json({ ok: true });

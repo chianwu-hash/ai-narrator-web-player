@@ -4,7 +4,7 @@
 
 ## MVP 已包含
 
-- 共用認證碼登入、HttpOnly cookie、錯誤嘗試限制，以及認證碼／版本變更後舊 session 失效
+- 共用邀請碼登入、HttpOnly cookie、錯誤嘗試限制，以及邀請碼／版本變更後舊 session 失效
 - 僅掃描指定 Drive 根目錄及「每本書一個子資料夾」的可預測索引
 - `EP01`、`第 1 集`、數字開頭等集數解析與真正的數字排序
 - 排除開場／結尾音樂、測試、暫存、工作檔等非書籍音訊
@@ -21,10 +21,10 @@
 3. 執行 `npm install`，再執行 `npm run dev`。
 4. 打開終端顯示的本機網址。
 
-產生認證碼 SHA-256：
+產生邀請碼 SHA-256：
 
 ```bash
-node -e "const c=require('node:crypto');const s=process.argv[1];console.log(c.createHash('sha256').update(s).digest('hex'))" "你的認證碼"
+node -e "const c=require('node:crypto');const s=process.argv[1];console.log(c.createHash('sha256').update(s).digest('hex'))" "你的邀請碼"
 ```
 
 產生 session secret：
@@ -46,7 +46,7 @@ npm run build
 
 ## MVP 限制
 
-- 進度與最愛只存在目前瀏覽器：不跨裝置同步；無痕模式或清除網站資料後可能消失。
-- 共用認證碼是有限度的私人存取控制，不是 DRM。
+- 未開啟同步前，進度與最愛只存在目前瀏覽器；開啟同步後可透過配對碼連結其他設備。無痕模式或清除網站資料後需要重新配對。
+- 共用邀請碼是有限度的私人存取控制，不是 DRM。
 - 音訊經 Vercel Functions 分段代理，會產生 Functions 執行與資料傳輸用量；若日後大量使用，應評估能保留私密授權的 CDN／物件儲存方案。
 - 不會修改、移動、重新命名或刪除 Drive 檔案，也不會操作現有 Telegram bot。

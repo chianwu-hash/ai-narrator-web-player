@@ -3,13 +3,13 @@
 ## 資料流
 
 ```text
-瀏覽器 ──認證碼──> Next.js 登入 API ──> HttpOnly session cookie
+瀏覽器 ──邀請碼──> Next.js 登入 API ──> HttpOnly session cookie
 瀏覽器 ──已登入──> 書庫 API ──唯讀──> Google Drive API
 HTML audio ─Range─> 音訊 API ─4 MiB Range─> Drive blob
 瀏覽器 ──────────> IndexedDB（進度、最愛、播放速度）
 ```
 
-所有 Google service account 憑證、Drive access token、認證碼 hash 與 session secret 都只存在伺服器環境。前端只收到已過濾的書籍、集數與穩定 Drive file ID。每次音訊／封面請求還會確認檔案位於允許的根目錄之下，避免把代理端點變成任意 Drive 檔案下載器。
+所有 Google service account 憑證、Drive access token、邀請碼 hash 與 session secret 都只存在伺服器環境。前端只收到已過濾的書籍、集數與穩定 Drive file ID。每次音訊／封面請求還會確認檔案位於允許的根目錄之下，避免把代理端點變成任意 Drive 檔案下載器。
 
 ## Drive 索引規則
 
