@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { EMPTY_PLAYER_STATE, resumePosition, toggleBookFavorite, toggleEpisodeFavorite, upsertProgress } from "@/lib/progress-model";
 import { loadPlayerState, savePlayerState } from "@/lib/progress-store";
 import type { Book, Episode, LibraryResponse, LocalPlayerState } from "@/lib/types";
+import { SyncControls } from "./sync-controls";
 import "./audio-library-app.css";
 
 type View = "home" | "library" | "favorites";
@@ -245,6 +246,7 @@ export function AudioLibraryApp() {
 
         {!ready && <div className="loading-state"><div className="loading-disc" /><p>正在整理你的書庫…</p></div>}
         {library?.notice && <div className="notice" role="status"><b>目前使用示範內容</b><span>{library.notice}</span></div>}
+        {ready && <SyncControls ready={ready} localState={localState} onStateMerged={setLocalState} onNotify={showMessage} />}
 
         {ready && view === "home" && (
           <>
