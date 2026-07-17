@@ -15,9 +15,15 @@ type CommentRow = {
   comment_type: "reflection" | "error_report" | "other";
   body: string;
   author_token_hash: string | null;
+  status: "new" | "reviewing" | "resolved" | "ignored";
   created_at: string;
   updated_at: string | null;
+  deleted_at: string | null;
 };
+
+type CommentStatus = CommentRow["status"];
+
+const ADMIN_COMMENT_SELECT = "id,target_type,book_id,book_title,episode_id,episode_title,comment_type,body,author_token_hash,status,created_at,updated_at,deleted_at";
 
 function isSupabaseConfigured(): boolean {
   return Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
@@ -72,15 +78,34 @@ function publicComment(row: CommentRow, currentAuthorHash: string | null) {
     episodeTitle: row.episode_title ?? undefined,
     commentType: row.comment_type,
     body: row.body,
+    status: row.status,
     createdAt: row.created_at,
     updatedAt: row.updated_at ?? undefined,
     canEdit: Boolean(currentAuthorHash && row.author_token_hash === currentAuthorHash),
   };
 }
 
+function adminComment(row: CommentRow) {
+  return {
+    id: row.id,
+    targetType: row.target_type,
+    bookId: row.book_id,
+    bookTitle: row.book_title,
+    episodeId: row.episode_id ?? undefined,
+    episodeTitle: row.episode_title ?? undefined,
+    commentType: row.comment_type,
+    body: row.body,
+    status: row.status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at ?? undefined,
+    deletedAt: row.deleted_at ?? undefined,
+    hasAuthorToken: Boolean(row.author_token_hash),
+  };
+}
+
 async function getCommentForOwner(id: string, currentAuthorHash: string): Promise<CommentRow> {
   const rows = await supabaseFetch<CommentRow[]>(
-    `content_comments?id=eq.${encodeURIComponent(id)}&deleted_at=is.null&select=id,target_type,book_id,book_title,episode_id,episode_title,comment_type,body,author_token_hash,created_at,updated_at&limit=1`,
+    `content_comments?id=eq.${encodeURIComponent(id)}&deleted_at=is.null&select=${ADMIN_COMMENT_SELECT}&limit=1`,
   );
   const row = rows[0];
   if (!row) throw new Error("找不到這則留言。");
@@ -94,9 +119,18 @@ export async function listContentComments(bookIdInput: unknown) {
   const token = await getAuthorToken(false);
   const currentAuthorHash = token ? hashToken(token) : null;
   const rows = await supabaseFetch<CommentRow[]>(
-    `content_comments?book_id=eq.${encodeURIComponent(bookId)}&deleted_at=is.null&status=neq.ignored&select=id,target_type,book_id,book_title,episode_id,episode_title,comment_type,body,author_token_hash,created_at,updated_at&order=created_at.desc&limit=100`,
+    `content_comments?book_id=eq.${encodeURIComponent(bookId)}&deleted_at=is.null&status=neq.ignored&select=${ADMIN_COMMENT_SELECT}&order=created_at.desc&limit=100`,
   );
   return rows.map((row) => publicComment(row, currentAuthorHash));
+}
+
+export async function listAdminContentComments(statusInput: unknown = "new") {
+  const status = typeof statusInput === "string" ? statusInput : "new";
+  const statusFilter = status === "all" ? "" : `&status=eq.${encodeURIComponent(status)}`;
+  const rows = await supabaseFetch<CommentRow[]>(
+    `content_comments?deleted_at=is.null${statusFilter}&select=${ADMIN_COMMENT_SELECT}&order=created_at.desc&limit=200`,
+  );
+  return rows.map(adminComment);
 }
 
 export async function createContentComment(input: unknown) {
@@ -153,6 +187,37 @@ export async function deleteContentComment(idInput: unknown) {
   if (!token) throw new Error("只能修改或刪除這台瀏覽器送出的留言。");
   const currentAuthorHash = hashToken(token);
   await getCommentForOwner(id, currentAuthorHash);
+  await supabaseFetch<CommentRow[]>(`content_comments?id=eq.${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      deleted_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }),
+  });
+  return { ok: true };
+}
+
+export async function updateAdminContentCommentStatus(idInput: unknown, statusInput: unknown) {
+  const id = typeof idInput === "string" ? idInput.trim() : "";
+  const status = typeof statusInput === "string" ? statusInput.trim() : "";
+  const allowed = new Set<CommentStatus>(["new", "reviewing", "resolved", "ignored"]);
+  if (!id) throw new Error("找不到這則留言。");
+  if (!allowed.has(status as CommentStatus)) throw new Error("留言狀態不正確。");
+  const rows = await supabaseFetch<CommentRow[]>(`content_comments?id=eq.${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      status,
+      updated_at: new Date().toISOString(),
+    }),
+  });
+  const row = rows[0];
+  if (!row) throw new Error("找不到這則留言。");
+  return adminComment(row);
+}
+
+export async function deleteAdminContentComment(idInput: unknown) {
+  const id = typeof idInput === "string" ? idInput.trim() : "";
+  if (!id) throw new Error("找不到這則留言。");
   await supabaseFetch<CommentRow[]>(`content_comments?id=eq.${encodeURIComponent(id)}`, {
     method: "PATCH",
     body: JSON.stringify({
