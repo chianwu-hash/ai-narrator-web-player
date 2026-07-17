@@ -16,6 +16,9 @@
 .login-eyebrow { margin: 28px 0 8px; font-size: 11px; letter-spacing: .18em; color: var(--coral); font-weight: 800; }
 .login-card h1 { margin: 0; font-size: clamp(34px, 7vw, 46px); letter-spacing: -.05em; }
 .login-copy { color: var(--muted); line-height: 1.75; margin: 12px 0 28px; }
+.site-statement { margin: -8px 0 24px; padding: 14px 15px; border: 1px solid #e6d8bf; border-radius: 14px; color: #674a27; background: #fff7e8; }
+.site-statement strong { display: block; margin-bottom: 5px; font-size: 12px; }
+.site-statement p { margin: 0; font-size: 12px; line-height: 1.7; }
 .login-form { display: grid; gap: 10px; }
 .login-form label { font-size: 13px; font-weight: 800; }
 .login-form input { width: 100%; border: 1px solid var(--line); background: #fff; border-radius: 14px; padding: 14px 16px; color: var(--ink); }
