@@ -22,6 +22,11 @@ export type ContentCommentValidation = {
   error: string;
 };
 
+export type ContentCommentUpdate = {
+  commentType: CommentType;
+  body: string;
+};
+
 function cleanText(value: unknown, maxLength: number): string {
   return typeof value === "string" ? value.trim().replace(/\s+/g, " ").slice(0, maxLength) : "";
 }
@@ -68,4 +73,13 @@ export function validateContentComment(input: unknown): ContentCommentValidation
       body,
     },
   };
+}
+
+export function validateContentCommentUpdate(input: unknown): { ok: true; value: ContentCommentUpdate } | { ok: false; error: string } {
+  if (!input || typeof input !== "object") return { ok: false, error: "留言資料格式不正確。" };
+  const data = input as Record<string, unknown>;
+  if (!isCommentType(data.commentType)) return { ok: false, error: "留言類型不正確。" };
+  const body = cleanBody(data.body);
+  if (body.length < 4) return { ok: false, error: "留言至少需要 4 個字。" };
+  return { ok: true, value: { commentType: data.commentType, body } };
 }

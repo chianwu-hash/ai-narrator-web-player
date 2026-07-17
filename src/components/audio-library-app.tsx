@@ -14,6 +14,19 @@ type CommentType = "reflection" | "error_report" | "other";
 type CommentTarget =
   | { targetType: "book"; book: Book }
   | { targetType: "episode"; book: Book; episode: Episode };
+type CommentItem = {
+  id: string;
+  targetType: "book" | "episode";
+  bookId: string;
+  bookTitle: string;
+  episodeId?: string;
+  episodeTitle?: string;
+  commentType: CommentType;
+  body: string;
+  createdAt: string;
+  updatedAt?: string;
+  canEdit: boolean;
+};
 
 function formatTime(seconds = 0): string {
   if (!Number.isFinite(seconds)) return "0:00";
@@ -41,6 +54,16 @@ function PlayerSpinner() {
   return <span className="player-spinner" aria-hidden="true" />;
 }
 
+function commentTypeLabel(type: CommentType): string {
+  return type === "reflection" ? "感想" : type === "error_report" ? "錯誤回報" : "其他";
+}
+
+function formatDateTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString("zh-TW", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
 export function AudioLibraryApp() {
   const router = useRouter();
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -65,6 +88,9 @@ export function AudioLibraryApp() {
   const [commentType, setCommentType] = useState<CommentType>("reflection");
   const [commentBody, setCommentBody] = useState("");
   const [commentSubmitting, setCommentSubmitting] = useState(false);
+  const [comments, setComments] = useState<CommentItem[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [editingCommentId, setEditingCommentId] = useState<string>();
 
   const startAudioLoading = useCallback(() => {
     setAudioLoading(true);
@@ -110,6 +136,7 @@ export function AudioLibraryApp() {
   const activeBook = books.find((book) => book.id === activeBookId);
   const activeEpisode = activeBook?.episodes.find((episode) => episode.id === activeEpisodeId);
   const activeProgress = activeEpisode ? localState.progress[activeEpisode.id] : undefined;
+  const selectedBookComments = selectedBook ? comments.filter((comment) => comment.bookId === selectedBook.id) : [];
 
   const favoriteBooks = books.filter((book) => localState.favoriteBookIds.includes(book.id));
   const favoriteEpisodes = useMemo(() => books.flatMap((book) => book.episodes.map((episode) => ({ book, episode })))
@@ -120,14 +147,28 @@ export function AudioLibraryApp() {
     return latest(b) - latest(a);
   }).filter((book) => book.episodes.some((episode) => localState.progress[episode.id])).slice(0, 4), [books, localState.progress]);
 
-  const continueTarget = useMemo(() => {
+  const continueTarget = (() => {
     const saved = localState.lastEpisodeId;
     for (const book of books) {
       const episode = book.episodes.find((item) => item.id === saved);
       if (episode) return { book, episode };
     }
     return books[0]?.episodes[0] ? { book: books[0], episode: books[0].episodes[0] } : undefined;
-  }, [books, localState.lastEpisodeId]);
+  })();
+
+  async function refreshComments(bookId: string) {
+    setCommentsLoading(true);
+    try {
+      const response = await fetch(`/api/comments?bookId=${encodeURIComponent(bookId)}`);
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(typeof data.error === "string" ? data.error : "留言讀取失敗。");
+      setComments(Array.isArray(data.comments) ? data.comments : []);
+    } catch (error) {
+      showMessage(error instanceof Error ? error.message : "留言讀取失敗。");
+    } finally {
+      setCommentsLoading(false);
+    }
+  }
 
   const commitProgress = useCallback((completed?: boolean) => {
     const audio = audioRef.current;
@@ -147,23 +188,6 @@ export function AudioLibraryApp() {
     document.addEventListener("visibilitychange", persistWhenHidden);
     return () => { window.removeEventListener("pagehide", persistOnPageHide); document.removeEventListener("visibilitychange", persistWhenHidden); };
   }, [commitProgress]);
-
-  useEffect(() => {
-    if (!activeBook || !activeEpisode || !("mediaSession" in navigator)) return;
-    navigator.mediaSession.metadata = new MediaMetadata({ title: activeEpisode.title, artist: `第 ${activeEpisode.number} 集`, album: activeBook.title });
-    const audio = audioRef.current;
-    const setHandler = (action: MediaSessionAction, handler: MediaSessionActionHandler) => {
-      try { navigator.mediaSession.setActionHandler(action, handler); } catch { /* Browser does not expose this action. */ }
-    };
-    setHandler("play", () => void audio?.play());
-    setHandler("pause", () => audio?.pause());
-    setHandler("seekbackward", () => { if (audio) audio.currentTime = Math.max(0, audio.currentTime - 15); });
-    setHandler("seekforward", () => { if (audio) audio.currentTime = Math.min(audio.duration || Infinity, audio.currentTime + 30); });
-    setHandler("previoustrack", () => changeEpisode(-1));
-    setHandler("nexttrack", () => changeEpisode(1));
-  // changeEpisode intentionally uses the latest render when metadata changes.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeBook, activeEpisode]);
 
   function showMessage(value: string) {
     setMessage(value);
@@ -204,6 +228,24 @@ export function AudioLibraryApp() {
     if (next) { commitProgress(); startEpisode(activeBook, next, true); }
   }
 
+  useEffect(() => {
+    if (!activeBook || !activeEpisode || !("mediaSession" in navigator)) return;
+    // eslint-disable-next-line react-hooks/immutability
+    navigator.mediaSession.metadata = new MediaMetadata({ title: activeEpisode.title, artist: `第 ${activeEpisode.number} 集`, album: activeBook.title });
+    const audio = audioRef.current;
+    const setHandler = (action: MediaSessionAction, handler: MediaSessionActionHandler) => {
+      try { navigator.mediaSession.setActionHandler(action, handler); } catch { /* Browser does not expose this action. */ }
+    };
+    setHandler("play", () => void audio?.play());
+    setHandler("pause", () => audio?.pause());
+    setHandler("seekbackward", () => { if (audio) audio.currentTime = Math.max(0, audio.currentTime - 15); });
+    setHandler("seekforward", () => { if (audio) audio.currentTime = Math.min(audio.duration || Infinity, audio.currentTime + 30); });
+    setHandler("previoustrack", () => changeEpisode(-1));
+    setHandler("nexttrack", () => changeEpisode(1));
+  // changeEpisode intentionally uses the latest render when metadata changes.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeBook, activeEpisode]);
+
   function togglePlay() {
     if (!activeEpisode && continueTarget) return startEpisode(continueTarget.book, continueTarget.episode, true);
     if (library?.source === "mock") return showMessage("示範書庫不含音檔；完成 Drive 設定後，播放與拖曳就會啟用。");
@@ -227,10 +269,28 @@ export function AudioLibraryApp() {
   function favoriteBook(id: string) { setLocalState((state) => toggleBookFavorite(state, id)); }
   function favoriteEpisode(id: string) { setLocalState((state) => toggleEpisodeFavorite(state, id)); }
 
+  function openBook(book: Book) {
+    setSelectedBookId(book.id);
+    void refreshComments(book.id);
+  }
+
   function openComment(target: CommentTarget) {
     setCommentTarget(target);
     setCommentType(target.targetType === "episode" ? "error_report" : "reflection");
     setCommentBody("");
+    setEditingCommentId(undefined);
+  }
+
+  function editComment(comment: CommentItem) {
+    if (!selectedBook) return;
+    const episode = comment.episodeId ? selectedBook.episodes.find((item) => item.id === comment.episodeId) : undefined;
+    if (comment.targetType === "episode" && !episode) return;
+    setCommentTarget(comment.targetType === "episode" && episode
+      ? { targetType: "episode", book: selectedBook, episode }
+      : { targetType: "book", book: selectedBook });
+    setCommentType(comment.commentType);
+    setCommentBody(comment.body);
+    setEditingCommentId(comment.id);
   }
 
   async function submitComment(event: FormEvent<HTMLFormElement>) {
@@ -239,9 +299,10 @@ export function AudioLibraryApp() {
     setCommentSubmitting(true);
     try {
       const response = await fetch("/api/comments", {
-        method: "POST",
+        method: editingCommentId ? "PATCH" : "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
+          id: editingCommentId,
           targetType: commentTarget.targetType,
           bookId: commentTarget.book.id,
           bookTitle: commentTarget.book.title,
@@ -255,11 +316,26 @@ export function AudioLibraryApp() {
       if (!response.ok) throw new Error(typeof data.error === "string" ? data.error : "留言送出失敗。");
       setCommentTarget(undefined);
       setCommentBody("");
-      showMessage("已收到留言，管理者會視情況整理。");
+      setEditingCommentId(undefined);
+      await refreshComments(commentTarget.book.id);
+      showMessage(editingCommentId ? "留言已更新。" : "已收到留言。");
     } catch (error) {
       showMessage(error instanceof Error ? error.message : "留言送出失敗。");
     } finally {
       setCommentSubmitting(false);
+    }
+  }
+
+  async function deleteComment(comment: CommentItem) {
+    if (!selectedBook || !window.confirm("確定要刪除這則留言嗎？")) return;
+    try {
+      const response = await fetch(`/api/comments?id=${encodeURIComponent(comment.id)}`, { method: "DELETE" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(typeof data.error === "string" ? data.error : "留言刪除失敗。");
+      await refreshComments(selectedBook.id);
+      showMessage("留言已刪除。");
+    } catch (error) {
+      showMessage(error instanceof Error ? error.message : "留言刪除失敗。");
     }
   }
 
@@ -309,18 +385,18 @@ export function AudioLibraryApp() {
                 </div>
               </section>
             )}
-            <BookSection title="最近播放" books={recentBooks.length ? recentBooks : books.slice(0, 4)} localState={localState} onOpen={(book) => setSelectedBookId(book.id)} onFavorite={favoriteBook} />
-            {favoriteBooks.length > 0 && <BookSection title="我的最愛" books={favoriteBooks.slice(0, 4)} localState={localState} onOpen={(book) => setSelectedBookId(book.id)} onFavorite={favoriteBook} />}
+            <BookSection title="最近播放" books={recentBooks.length ? recentBooks : books.slice(0, 4)} localState={localState} onOpen={openBook} onFavorite={favoriteBook} />
+            {favoriteBooks.length > 0 && <BookSection title="我的最愛" books={favoriteBooks.slice(0, 4)} localState={localState} onOpen={openBook} onFavorite={favoriteBook} />}
           </>
         )}
 
         {ready && view === "library" && (
-          <BookSection title={`${books.length} 本書`} books={books} localState={localState} onOpen={(book) => setSelectedBookId(book.id)} onFavorite={favoriteBook} expanded />
+          <BookSection title={`${books.length} 本書`} books={books} localState={localState} onOpen={openBook} onFavorite={favoriteBook} expanded />
         )}
 
         {ready && view === "favorites" && (
           <section>
-            <BookSection title="收藏的書" books={favoriteBooks} localState={localState} onOpen={(book) => setSelectedBookId(book.id)} onFavorite={favoriteBook} expanded />
+            <BookSection title="收藏的書" books={favoriteBooks} localState={localState} onOpen={openBook} onFavorite={favoriteBook} expanded />
             <div className="episode-favorites">
               <div className="section-heading"><h2>收藏的單集</h2><span>{favoriteEpisodes.length} 集</span></div>
               {favoriteEpisodes.map(({ book, episode }) => (
@@ -360,6 +436,20 @@ export function AudioLibraryApp() {
                 </div>;
               })}
             </div>
+            <section className="comments-section">
+              <div className="section-heading"><h2>留言與回報</h2><span>{commentsLoading ? "讀取中" : `${selectedBookComments.length} 則`}</span></div>
+              {selectedBookComments.length ? <div className="comment-list">{selectedBookComments.map((comment) => (
+                <article className="comment-card" key={comment.id}>
+                  <div className="comment-meta">
+                    <span>{comment.targetType === "episode" ? `單集：${comment.episodeTitle ?? ""}` : "整本書"}</span>
+                    <span>{commentTypeLabel(comment.commentType)}</span>
+                    <time>{formatDateTime(comment.updatedAt ?? comment.createdAt)}{comment.updatedAt ? " 編輯" : ""}</time>
+                  </div>
+                  <p>{comment.body}</p>
+                  {comment.canEdit && <div className="comment-actions"><button onClick={() => editComment(comment)}>編輯</button><button onClick={() => void deleteComment(comment)}>刪除</button></div>}
+                </article>
+              ))}</div> : <p className="comment-empty">{commentsLoading ? "正在讀取留言…" : "還沒有留言。可以留下感想，或回報說書人的重大錯誤。"}</p>}
+            </section>
           </section>
         </div>
       )}
@@ -377,7 +467,7 @@ export function AudioLibraryApp() {
               <option value="other">其他</option>
             </select></label>
             <label>內容<textarea value={commentBody} onChange={(event) => setCommentBody(event.target.value.slice(0, 1000))} minLength={4} maxLength={1000} required placeholder="可以留下感想，也可以指出說書人理解錯誤、人物關係錯誤、章節重點偏掉等問題。" /></label>
-            <div className="comment-footer"><span>{commentBody.length}/1000</span><button type="submit" disabled={commentSubmitting || commentBody.trim().length < 4}>{commentSubmitting ? "送出中…" : "送出留言"}</button></div>
+            <div className="comment-footer"><span>{commentBody.length}/1000</span><button type="submit" disabled={commentSubmitting || commentBody.trim().length < 4}>{commentSubmitting ? "送出中…" : editingCommentId ? "更新留言" : "送出留言"}</button></div>
           </form>
         </div>
       )}

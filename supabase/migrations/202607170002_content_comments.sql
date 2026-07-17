@@ -7,13 +7,18 @@ create table if not exists public.content_comments (
   episode_title text,
   comment_type text not null check (comment_type in ('reflection', 'error_report', 'other')),
   body text not null check (char_length(body) between 4 and 1000),
+  author_token_hash text,
   status text not null default 'new' check (status in ('new', 'reviewing', 'resolved', 'ignored')),
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  updated_at timestamptz,
+  deleted_at timestamptz
 );
 
 create index if not exists content_comments_created_at_idx on public.content_comments(created_at desc);
 create index if not exists content_comments_status_idx on public.content_comments(status);
 create index if not exists content_comments_book_id_idx on public.content_comments(book_id);
 create index if not exists content_comments_episode_id_idx on public.content_comments(episode_id);
+create index if not exists content_comments_author_token_hash_idx on public.content_comments(author_token_hash);
+create index if not exists content_comments_deleted_at_idx on public.content_comments(deleted_at);
 
 alter table public.content_comments enable row level security;

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isRequestAuthenticated } from "@/lib/auth";
-import { commentsAvailable, createContentComment } from "@/lib/comments-server";
+import { commentsAvailable, createContentComment, deleteContentComment, listContentComments, updateContentComment } from "@/lib/comments-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,8 +35,42 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}));
   try {
     const comment = await createContentComment(body);
-    return NextResponse.json({ ok: true, id: comment.id, createdAt: comment.created_at });
+    return NextResponse.json({ ok: true, comment });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "留言送出失敗。" }, { status: 400 });
+  }
+}
+
+export async function GET(request: NextRequest) {
+  if (!await isRequestAuthenticated()) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!commentsAvailable()) return NextResponse.json({ error: "留言功能尚未設定資料庫。" }, { status: 503 });
+  try {
+    const comments = await listContentComments(request.nextUrl.searchParams.get("bookId"));
+    return NextResponse.json({ comments });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "留言讀取失敗。" }, { status: 400 });
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  if (!await isRequestAuthenticated()) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!commentsAvailable()) return NextResponse.json({ error: "留言功能尚未設定資料庫。" }, { status: 503 });
+  const body = await request.json().catch(() => ({}));
+  try {
+    const comment = await updateContentComment(body.id, body);
+    return NextResponse.json({ ok: true, comment });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "留言更新失敗。" }, { status: 400 });
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  if (!await isRequestAuthenticated()) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!commentsAvailable()) return NextResponse.json({ error: "留言功能尚未設定資料庫。" }, { status: 503 });
+  try {
+    await deleteContentComment(request.nextUrl.searchParams.get("id"));
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "留言刪除失敗。" }, { status: 400 });
   }
 }

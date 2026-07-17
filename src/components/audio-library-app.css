@@ -112,6 +112,17 @@
 .comment-footer { display: flex; justify-content: space-between; gap: 14px; align-items: center; color: var(--muted); font-size: 11px; }
 .comment-footer button { min-height: 40px; padding: 0 16px; border: 0; border-radius: 11px; color: white; background: var(--forest); cursor: pointer; font-weight: 800; }
 .comment-footer button:disabled { opacity: .55; cursor: wait; }
+.comments-section { margin-top: 28px; padding-top: 22px; border-top: 1px solid var(--line); }
+.comment-list { display: grid; gap: 12px; }
+.comment-card { padding: 14px; border: 1px solid #dfe5df; border-radius: 14px; background: rgba(255,255,255,.55); }
+.comment-meta { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; color: var(--muted); font-size: 10px; }
+.comment-meta span { padding: 4px 7px; border-radius: 999px; background: #edf5f1; color: var(--forest); font-weight: 800; }
+.comment-meta time { margin-left: auto; }
+.comment-card p { margin: 10px 0 0; white-space: pre-wrap; line-height: 1.7; font-size: 13px; }
+.comment-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; }
+.comment-actions button { border: 0; background: transparent; color: var(--forest); cursor: pointer; font-size: 11px; font-weight: 800; }
+.comment-actions button:last-child { color: #a94435; }
+.comment-empty { margin: 0; padding: 18px; color: var(--muted); border: 1px dashed #cfd8d2; border-radius: 14px; font-size: 12px; line-height: 1.7; text-align: center; }
 .mini-player { position: fixed; z-index: 50; left: calc(244px + clamp(28px, 5vw, 72px)); right: clamp(28px, 5vw, 72px); bottom: 22px; min-height: 78px; display: grid; grid-template-columns: minmax(180px, 1fr) auto; gap: 8px; align-items: center; padding: 9px 14px 9px 10px; color: white; background: rgba(16,61,53,.97); border: 1px solid rgba(255,255,255,.11); border-radius: 20px; box-shadow: 0 18px 50px rgba(15,49,42,.27); backdrop-filter: blur(14px); overflow: hidden; }
 .mini-main { min-width: 0; height: 58px; padding: 0; display: flex; align-items: center; gap: 12px; border: 0; background: transparent; color: white; text-align: left; cursor: pointer; }
 .mini-main > span { min-width: 0; display: grid; gap: 5px; }
