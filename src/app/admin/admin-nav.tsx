@@ -12,6 +12,10 @@ const adminLinks: { key: AdminSection; href: string; label: string; description:
 export function AdminNav({ active }: { active: AdminSection }) {
   return (
     <nav className="admin-nav" aria-label="後台導覽">
+      <Link href="/" className="admin-nav-player">
+        <span>回播放器</span>
+        <small>前台收聽頁</small>
+      </Link>
       {adminLinks.map((item) => (
         <Link key={item.key} href={item.href} className={item.key === active ? "active" : ""} aria-current={item.key === active ? "page" : undefined}>
           <span>{item.label}</span>

@@ -190,6 +190,15 @@
   color: rgba(255, 255, 255, .72);
 }
 
+.admin-nav a.admin-nav-player {
+  color: #7a3d1c;
+  background: #fff2df;
+}
+
+.admin-nav a.admin-nav-player small {
+  color: rgba(122, 61, 28, .68);
+}
+
 .admin-filters a {
   padding: 10px 14px;
   border: 1px solid var(--line);
