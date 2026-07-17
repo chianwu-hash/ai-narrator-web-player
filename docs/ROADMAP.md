@@ -142,7 +142,13 @@
 
 ### 3. 同步 Telegram 群組 `/help`
 
-若 Telegram bot 的 `/help` 仍是另一份內容，應同步目前網站說明：
+狀態：文案已準備，尚未套用到 bot。原因是目前工作區沒有 Telegram bot 原始碼或 `/help` 指令來源。
+
+標準文案已整理於：
+
+- `docs/TELEGRAM_HELP.md`
+
+取得 Telegram bot repo 或實際 `/help` 檔案後，應同步目前網站說明：
 
 - 網站網址。
 - 邀請碼用途。
