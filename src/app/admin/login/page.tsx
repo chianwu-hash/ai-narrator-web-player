@@ -4,7 +4,7 @@ import { AdminLoginForm } from "./admin-login-form";
 import "../admin.css";
 
 export default async function AdminLoginPage() {
-  if (await isAdminAuthenticated()) redirect("/admin/comments");
+  if (await isAdminAuthenticated()) redirect("/admin");
   return (
     <main className="admin-login-shell">
       <section className="admin-login-card">

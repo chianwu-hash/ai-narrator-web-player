@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { deviceActivityAvailable, listAdminDeviceActivity } from "@/lib/device-activity-server";
+import { AdminNav } from "../admin-nav";
 import { AdminLogoutButton } from "../comments/admin-comment-actions";
 import "../admin.css";
 
@@ -77,11 +77,7 @@ export default async function AdminDevicesPage() {
         <AdminLogoutButton />
       </header>
 
-      <div className="admin-section-links" aria-label="後台功能">
-        <Link href="/admin/comments">留言管理</Link>
-        <Link href="/admin/wishes">許願池</Link>
-        <Link href="/admin/devices" className="active">設備監控</Link>
-      </div>
+      <AdminNav active="devices" />
 
       <section className="admin-device-stats" aria-label="設備統計">
         <div><b>{activity.total}</b><span>總設備數</span></div>

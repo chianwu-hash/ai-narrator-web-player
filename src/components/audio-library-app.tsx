@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { type CSSProperties, type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { EMPTY_PLAYER_STATE, resumePosition, toggleBookFavorite, toggleEpisodeFavorite, upsertProgress } from "@/lib/progress-model";
@@ -484,13 +485,21 @@ export function AudioLibraryApp() {
           <NavButton active={view === "wishes"} symbol="✦" label="許願池" onClick={openWishes} />
         </nav>
         <div className="side-note"><b>可跨設備同步</b><span>開啟同步後，進度與最愛會跟著已配對設備。</span></div>
+        <div className="side-link-row" aria-label="相關連結">
+          <Link href="/help">說明</Link>
+          <Link href="/admin">管理後台</Link>
+        </div>
         <button className="logout-button" onClick={logout}>登出</button>
       </aside>
 
       <main className="main-content">
         <header className="topbar">
           <div><p>歡迎回來</p><h1>{view === "home" ? "今天想聽哪一本？" : view === "library" ? "全部書籍" : view === "favorites" ? "我的最愛" : "許願池"}</h1></div>
-          <div className={library?.source === "drive" ? "source-badge connected" : "source-badge"}><span />{library?.source === "drive" ? "Drive 已連線" : "示範書庫"}</div>
+          <div className="topbar-actions">
+            <Link className="utility-link" href="/help">說明</Link>
+            <Link className="utility-link" href="/admin">管理</Link>
+            <div className={library?.source === "drive" ? "source-badge connected" : "source-badge"}><span />{library?.source === "drive" ? "Drive 已連線" : "示範書庫"}</div>
+          </div>
         </header>
 
         {!ready && <div className="loading-state"><div className="loading-disc" /><p>正在整理你的書庫…</p></div>}

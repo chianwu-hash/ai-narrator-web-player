@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { commentsAvailable, listAdminContentComments } from "@/lib/comments-server";
+import { AdminNav } from "../admin-nav";
 import { AdminCommentActions, AdminLogoutButton } from "./admin-comment-actions";
 import "../admin.css";
 
@@ -85,11 +86,7 @@ export default async function AdminCommentsPage({ searchParams }: { searchParams
         <AdminLogoutButton />
       </header>
 
-      <div className="admin-section-links" aria-label="後台功能">
-        <Link href="/admin/comments" className="active">留言管理</Link>
-        <Link href="/admin/wishes">許願池</Link>
-        <Link href="/admin/devices">設備監控</Link>
-      </div>
+      <AdminNav active="comments" />
 
       <nav className="admin-filters" aria-label="留言狀態">
         {filters.map((item) => (

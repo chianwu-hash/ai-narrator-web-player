@@ -77,9 +77,15 @@
 .side-note { margin-top: auto; padding: 18px; display: grid; gap: 6px; background: var(--nav-panel); border-radius: 16px; }
 .side-note b { font-size: 12px; }
 .side-note span { color: var(--nav-note); font-size: 11px; line-height: 1.55; }
+.side-link-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+.side-link-row a { padding: 9px 8px; border-radius: 11px; color: var(--nav-muted); background: var(--nav-soft); text-align: center; text-decoration: none; font-size: 11px; font-weight: 900; }
+.side-link-row a:hover { color: white; }
 .logout-button { margin-top: 12px; border: 0; color: rgba(255,255,255,.65); background: transparent; padding: 10px; cursor: pointer; font-size: 12px; }
 .main-content { margin-left: 244px; padding: 38px clamp(28px, 5vw, 72px) 160px; min-height: 100vh; }
 .topbar { display: flex; justify-content: space-between; gap: 20px; align-items: center; margin-bottom: 34px; }
+.topbar-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.utility-link { flex: none; padding: 9px 12px; border: 1px solid var(--line); border-radius: 99px; color: var(--forest); background: rgba(255,255,255,.56); text-decoration: none; font-size: 11px; font-weight: 900; }
+.utility-link:hover { background: white; }
 .topbar p { margin: 0 0 4px; color: var(--muted); font-size: 13px; }
 .topbar h1 { margin: 0; font-size: clamp(27px, 3vw, 40px); letter-spacing: -.055em; line-height: 1.15; }
 .source-badge { flex: none; padding: 9px 12px; display: flex; align-items: center; gap: 8px; color: var(--badge-text); border: 1px solid var(--badge-border); background: var(--badge-bg); border-radius: 99px; font-size: 11px; font-weight: 800; }
@@ -288,6 +294,8 @@
   .side-nav { display: none; }
   .main-content { margin-left: 0; padding: 25px 20px 190px; }
   .topbar { margin-bottom: 25px; }
+  .topbar-actions { align-items: flex-start; }
+  .utility-link { padding: 8px 10px; }
   .topbar p { display: none; }
   .book-grid, .book-grid.expanded { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .mini-player { left: 12px; right: 12px; bottom: calc(76px + env(safe-area-inset-bottom)); grid-template-columns: minmax(0, 1fr) auto; gap: 4px; min-height: 68px; border-radius: 16px; }

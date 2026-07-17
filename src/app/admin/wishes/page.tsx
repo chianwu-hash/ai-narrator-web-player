@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { listAdminBookWishes, wishesAvailable } from "@/lib/wishes-server";
+import { AdminNav } from "../admin-nav";
 import { AdminLogoutButton } from "../comments/admin-comment-actions";
 import { AdminWishActions } from "./admin-wish-actions";
 import "../admin.css";
@@ -80,11 +81,7 @@ export default async function AdminWishesPage({ searchParams }: { searchParams: 
         <AdminLogoutButton />
       </header>
 
-      <div className="admin-section-links" aria-label="後台功能">
-        <Link href="/admin/comments">留言管理</Link>
-        <Link href="/admin/wishes" className="active">許願池</Link>
-        <Link href="/admin/devices">設備監控</Link>
-      </div>
+      <AdminNav active="wishes" />
 
       <nav className="admin-filters" aria-label="願望狀態">
         {filters.map((item) => (

@@ -24,7 +24,7 @@ export function AdminLoginForm() {
         setError(result.error ?? "登入失敗，請確認管理者碼。");
         return;
       }
-      router.replace("/admin/comments");
+      router.replace("/admin");
       router.refresh();
     } finally {
       setBusy(false);
