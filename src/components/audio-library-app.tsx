@@ -183,6 +183,29 @@ export function AudioLibraryApp() {
     if (ready) void savePlayerState(localState);
   }, [localState, ready]);
 
+  useEffect(() => {
+    if (!ready) return;
+    let stopped = false;
+    let lastPingAt = 0;
+    function pingActivity() {
+      const now = Date.now();
+      if (stopped || now - lastPingAt < 4 * 60 * 1000) return;
+      lastPingAt = now;
+      void fetch("/api/activity", { method: "POST" }).catch(() => {});
+    }
+    function pingWhenVisible() {
+      if (document.visibilityState === "visible") pingActivity();
+    }
+    pingActivity();
+    document.addEventListener("visibilitychange", pingWhenVisible);
+    const interval = window.setInterval(pingActivity, 5 * 60 * 1000);
+    return () => {
+      stopped = true;
+      document.removeEventListener("visibilitychange", pingWhenVisible);
+      window.clearInterval(interval);
+    };
+  }, [ready]);
+
   const books = useMemo(() => library?.books ?? [], [library]);
   const selectedBook = books.find((book) => book.id === selectedBookId);
   const activeBook = books.find((book) => book.id === activeBookId);

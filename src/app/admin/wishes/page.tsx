@@ -83,6 +83,7 @@ export default async function AdminWishesPage({ searchParams }: { searchParams: 
       <div className="admin-section-links" aria-label="後台功能">
         <Link href="/admin/comments">留言管理</Link>
         <Link href="/admin/wishes" className="active">許願池</Link>
+        <Link href="/admin/devices">設備監控</Link>
       </div>
 
       <nav className="admin-filters" aria-label="願望狀態">

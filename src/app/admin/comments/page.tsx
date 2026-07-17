@@ -88,6 +88,7 @@ export default async function AdminCommentsPage({ searchParams }: { searchParams
       <div className="admin-section-links" aria-label="後台功能">
         <Link href="/admin/comments" className="active">留言管理</Link>
         <Link href="/admin/wishes">許願池</Link>
+        <Link href="/admin/devices">設備監控</Link>
       </div>
 
       <nav className="admin-filters" aria-label="留言狀態">
