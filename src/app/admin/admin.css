@@ -145,6 +145,28 @@
   margin: 26px 0;
 }
 
+.admin-section-links {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 24px 0 -8px;
+}
+
+.admin-section-links a {
+  padding: 11px 16px;
+  border-radius: 13px;
+  color: var(--forest);
+  background: #e9f3ee;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.admin-section-links a.active {
+  color: white;
+  background: var(--forest);
+}
+
 .admin-filters a {
   padding: 10px 14px;
   border: 1px solid var(--line);

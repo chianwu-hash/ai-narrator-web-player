@@ -9,7 +9,7 @@ import type { Book, Episode, LibraryResponse, LocalPlayerState } from "@/lib/typ
 import { SyncControls } from "./sync-controls";
 import "./audio-library-app.css";
 
-type View = "home" | "library" | "favorites";
+type View = "home" | "library" | "favorites" | "wishes";
 type CommentType = "reflection" | "error_report" | "other";
 type CommentTarget =
   | { targetType: "book"; book: Book }
@@ -91,6 +91,10 @@ export function AudioLibraryApp() {
   const [comments, setComments] = useState<CommentItem[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [editingCommentId, setEditingCommentId] = useState<string>();
+  const [wishTitle, setWishTitle] = useState("");
+  const [wishAuthor, setWishAuthor] = useState("");
+  const [wishReason, setWishReason] = useState("");
+  const [wishSubmitting, setWishSubmitting] = useState(false);
 
   const startAudioLoading = useCallback(() => {
     setAudioLoading(true);
@@ -339,6 +343,33 @@ export function AudioLibraryApp() {
     }
   }
 
+  async function submitWish(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (wishTitle.trim().length < 2 || wishReason.trim().length < 4) return;
+    setWishSubmitting(true);
+    try {
+      const response = await fetch("/api/wishes", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          title: wishTitle,
+          author: wishAuthor,
+          reason: wishReason,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(typeof data.error === "string" ? data.error : "許願送出失敗。");
+      setWishTitle("");
+      setWishAuthor("");
+      setWishReason("");
+      showMessage("已收到願望，管理者會作為後續製書參考。");
+    } catch (error) {
+      showMessage(error instanceof Error ? error.message : "許願送出失敗。");
+    } finally {
+      setWishSubmitting(false);
+    }
+  }
+
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
     router.replace("/login");
@@ -353,6 +384,7 @@ export function AudioLibraryApp() {
           <NavButton active={view === "home"} symbol="⌂" label="首頁" onClick={() => setView("home")} />
           <NavButton active={view === "library"} symbol="▤" label="全部書籍" onClick={() => setView("library")} />
           <NavButton active={view === "favorites"} symbol="♥" label="我的最愛" onClick={() => setView("favorites")} />
+          <NavButton active={view === "wishes"} symbol="✦" label="許願池" onClick={() => setView("wishes")} />
         </nav>
         <div className="side-note"><b>可跨設備同步</b><span>開啟同步後，進度與最愛會跟著已配對設備。</span></div>
         <button className="logout-button" onClick={logout}>登出</button>
@@ -360,7 +392,7 @@ export function AudioLibraryApp() {
 
       <main className="main-content">
         <header className="topbar">
-          <div><p>歡迎回來</p><h1>{view === "home" ? "今天想聽哪一本？" : view === "library" ? "全部書籍" : "我的最愛"}</h1></div>
+          <div><p>歡迎回來</p><h1>{view === "home" ? "今天想聽哪一本？" : view === "library" ? "全部書籍" : view === "favorites" ? "我的最愛" : "許願池"}</h1></div>
           <div className={library?.source === "drive" ? "source-badge connected" : "source-badge"}><span />{library?.source === "drive" ? "Drive 已連線" : "示範書庫"}</div>
         </header>
 
@@ -409,12 +441,38 @@ export function AudioLibraryApp() {
             </div>
           </section>
         )}
+
+        {ready && view === "wishes" && (
+          <section className="wish-panel">
+            <div className="wish-copy">
+              <p className="section-kicker">WISH POOL</p>
+              <h2>想聽哪一本書？</h2>
+              <p>可以不記名留下書名與推薦理由。這裡不是保證製作清單，而是協助管理者判斷下一批值得製作的內容。</p>
+            </div>
+            <form className="wish-form" onSubmit={submitWish}>
+              <label>想聽的書名
+                <input value={wishTitle} onChange={(event) => setWishTitle(event.target.value.slice(0, 160))} minLength={2} maxLength={160} required placeholder="例如：原子習慣" />
+              </label>
+              <label>作者，可不填
+                <input value={wishAuthor} onChange={(event) => setWishAuthor(event.target.value.slice(0, 100))} maxLength={100} placeholder="例如：James Clear" />
+              </label>
+              <label>推薦理由
+                <textarea value={wishReason} onChange={(event) => setWishReason(event.target.value.slice(0, 1000))} minLength={4} maxLength={1000} required placeholder="為什麼想聽這本？適合誰？哪個觀點值得被說書？" />
+              </label>
+              <div className="wish-form-footer">
+                <span>{wishReason.length}/1000</span>
+                <button type="submit" disabled={wishSubmitting || wishTitle.trim().length < 2 || wishReason.trim().length < 4}>{wishSubmitting ? "送出中…" : "送出願望"}</button>
+              </div>
+            </form>
+          </section>
+        )}
       </main>
 
       <nav className="mobile-nav" aria-label="行動版主要導覽">
         <NavButton active={view === "home"} symbol="⌂" label="首頁" onClick={() => setView("home")} />
         <NavButton active={view === "library"} symbol="▤" label="書庫" onClick={() => setView("library")} />
         <NavButton active={view === "favorites"} symbol="♥" label="最愛" onClick={() => setView("favorites")} />
+        <NavButton active={view === "wishes"} symbol="✦" label="許願" onClick={() => setView("wishes")} />
       </nav>
 
       {selectedBook && (
