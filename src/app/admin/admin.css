@@ -263,6 +263,23 @@
   letter-spacing: -.04em;
 }
 
+.admin-dashboard-card small {
+  width: fit-content;
+  padding: 5px 9px;
+  border-radius: 999px;
+  color: var(--forest);
+  background: #e9f3ee;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.admin-dashboard-stat {
+  margin: 6px 0 4px;
+  font-size: clamp(42px, 8vw, 70px);
+  line-height: .9;
+  letter-spacing: -.07em;
+}
+
 .admin-dashboard-card p,
 .admin-management-note p {
   margin: 0;
