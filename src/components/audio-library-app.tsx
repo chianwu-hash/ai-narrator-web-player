@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { EMPTY_PLAYER_STATE, resumePosition, toggleBookFavorite, toggleEpisodeFavorite, upsertProgress } from "@/lib/progress-model";
 import { loadPlayerState, savePlayerState } from "@/lib/progress-store";
@@ -26,6 +26,15 @@ type CommentItem = {
   createdAt: string;
   updatedAt?: string;
   canEdit: boolean;
+};
+type WishItem = {
+  id: string;
+  title: string;
+  author?: string;
+  reason: string;
+  status: "new" | "reviewing" | "accepted" | "rejected" | "done";
+  createdAt: string;
+  coverUrl?: string;
 };
 
 function formatTime(seconds = 0): string {
@@ -64,6 +73,30 @@ function formatDateTime(value: string): string {
   return date.toLocaleString("zh-TW", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
 
+function wishStatusLabel(status: WishItem["status"]): string {
+  if (status === "reviewing") return "考慮中";
+  if (status === "accepted") return "已採納";
+  if (status === "rejected") return "暫不製作";
+  if (status === "done") return "已完成";
+  return "新願望";
+}
+
+function wishBookStyle(wish: WishItem, index: number): CSSProperties {
+  let hash = 0;
+  for (const char of wish.id + wish.title) hash = (hash * 31 + char.charCodeAt(0)) % 9973;
+  const x = 8 + (hash % 72);
+  const y = 12 + ((hash >> 3) % 58);
+  const rotation = -24 + ((hash >> 5) % 49);
+  const size = 74 + ((hash + index * 13) % 28);
+  return {
+    "--wish-x": `${x}%`,
+    "--wish-y": `${y}%`,
+    "--wish-rotate": `${rotation}deg`,
+    "--wish-unrotate": `${rotation * -1}deg`,
+    "--wish-size": `${size}px`,
+  } as CSSProperties;
+}
+
 export function AudioLibraryApp() {
   const router = useRouter();
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -95,6 +128,9 @@ export function AudioLibraryApp() {
   const [wishAuthor, setWishAuthor] = useState("");
   const [wishReason, setWishReason] = useState("");
   const [wishSubmitting, setWishSubmitting] = useState(false);
+  const [wishes, setWishes] = useState<WishItem[]>([]);
+  const [wishesLoading, setWishesLoading] = useState(false);
+  const [wishesLoaded, setWishesLoaded] = useState(false);
 
   const startAudioLoading = useCallback(() => {
     setAudioLoading(true);
@@ -171,6 +207,21 @@ export function AudioLibraryApp() {
       showMessage(error instanceof Error ? error.message : "留言讀取失敗。");
     } finally {
       setCommentsLoading(false);
+    }
+  }
+
+  async function refreshWishes() {
+    setWishesLoading(true);
+    try {
+      const response = await fetch("/api/wishes");
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(typeof data.error === "string" ? data.error : "願望讀取失敗。");
+      setWishes(Array.isArray(data.wishes) ? data.wishes : []);
+      setWishesLoaded(true);
+    } catch (error) {
+      showMessage(error instanceof Error ? error.message : "願望讀取失敗。");
+    } finally {
+      setWishesLoading(false);
     }
   }
 
@@ -278,6 +329,11 @@ export function AudioLibraryApp() {
     void refreshComments(book.id);
   }
 
+  function openWishes() {
+    setView("wishes");
+    if (!wishesLoaded) void refreshWishes();
+  }
+
   function openComment(target: CommentTarget) {
     setCommentTarget(target);
     setCommentType(target.targetType === "episode" ? "error_report" : "reflection");
@@ -362,6 +418,7 @@ export function AudioLibraryApp() {
       setWishTitle("");
       setWishAuthor("");
       setWishReason("");
+      await refreshWishes();
       showMessage("已收到願望，管理者會作為後續製書參考。");
     } catch (error) {
       showMessage(error instanceof Error ? error.message : "許願送出失敗。");
@@ -384,7 +441,7 @@ export function AudioLibraryApp() {
           <NavButton active={view === "home"} symbol="⌂" label="首頁" onClick={() => setView("home")} />
           <NavButton active={view === "library"} symbol="▤" label="全部書籍" onClick={() => setView("library")} />
           <NavButton active={view === "favorites"} symbol="♥" label="我的最愛" onClick={() => setView("favorites")} />
-          <NavButton active={view === "wishes"} symbol="✦" label="許願池" onClick={() => setView("wishes")} />
+          <NavButton active={view === "wishes"} symbol="✦" label="許願池" onClick={openWishes} />
         </nav>
         <div className="side-note"><b>可跨設備同步</b><span>開啟同步後，進度與最愛會跟著已配對設備。</span></div>
         <button className="logout-button" onClick={logout}>登出</button>
@@ -464,6 +521,58 @@ export function AudioLibraryApp() {
                 <button type="submit" disabled={wishSubmitting || wishTitle.trim().length < 2 || wishReason.trim().length < 4}>{wishSubmitting ? "送出中…" : "送出願望"}</button>
               </div>
             </form>
+            <div className="wish-pool-wrap">
+              <div className="section-heading"><h2>大家的願望</h2><span>{wishesLoading ? "讀取中" : `${wishes.length} 本`}</span></div>
+              <div className="wish-pool" aria-label="大家許願想聽的書">
+                <svg className="wish-pool-svg" viewBox="0 0 900 430" role="img" aria-label="許願池">
+                  <defs>
+                    <radialGradient id="poolGlow" cx="50%" cy="42%" r="64%">
+                      <stop offset="0%" stopColor="#bde9df" />
+                      <stop offset="58%" stopColor="#5aa99a" />
+                      <stop offset="100%" stopColor="#1d5b4f" />
+                    </radialGradient>
+                    <linearGradient id="poolEdge" x1="0%" x2="100%">
+                      <stop offset="0%" stopColor="#f8efe0" />
+                      <stop offset="52%" stopColor="#fffaf0" />
+                      <stop offset="100%" stopColor="#ead9bb" />
+                    </linearGradient>
+                  </defs>
+                  <ellipse cx="450" cy="232" rx="405" ry="154" fill="url(#poolEdge)" />
+                  <ellipse cx="450" cy="218" rx="358" ry="122" fill="url(#poolGlow)" />
+                  <path d="M118 217c78-48 156-54 235-17 84 40 178 39 280-4 55-24 103-25 149-4" fill="none" stroke="rgba(255,255,255,.42)" strokeWidth="12" strokeLinecap="round" />
+                  <path d="M178 261c73 25 146 21 219-11 68-29 146-25 234 13 34 15 66 19 96 12" fill="none" stroke="rgba(255,255,255,.25)" strokeWidth="8" strokeLinecap="round" />
+                  <ellipse cx="450" cy="218" rx="358" ry="122" fill="none" stroke="rgba(20,69,61,.28)" strokeWidth="3" />
+                </svg>
+                {wishes.map((wish, index) => (
+                  <article className="wish-book" key={wish.id} style={wishBookStyle(wish, index)} title={`${wish.title}${wish.author ? `｜${wish.author}` : ""}`}>
+                    <div className="wish-book-cover">
+                      {wish.coverUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={wish.coverUrl} alt={`${wish.title}封面`} loading="lazy" />
+                      ) : <div className="wish-book-fallback"><span>{wish.title.slice(0, 1)}</span><small>WISH</small></div>}
+                    </div>
+                    <div className="wish-book-info">
+                      <b>{wish.title}</b>
+                      <small>{wish.author ?? "作者未填"} · {wishStatusLabel(wish.status)}</small>
+                      <p>{wish.reason}</p>
+                    </div>
+                  </article>
+                ))}
+                {!wishesLoading && wishes.length === 0 && <div className="wish-pool-empty">目前還沒有願望。可以先丟第一本書進池裡。</div>}
+              </div>
+              <p className="wish-pool-note">封面由公開書籍資料來源自動比對；若找不到封面，會顯示站內預設書封。</p>
+              {wishes.length > 0 && (
+                <div className="wish-public-list" aria-label="許願內容清單">
+                  {wishes.map((wish) => (
+                    <article key={`list-${wish.id}`} className="wish-public-card">
+                      <b>{wish.title}</b>
+                      <span>{wish.author ? `作者：${wish.author}` : "作者未填"} · {wishStatusLabel(wish.status)}</span>
+                      <p>{wish.reason}</p>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </div>
           </section>
         )}
       </main>
@@ -472,7 +581,7 @@ export function AudioLibraryApp() {
         <NavButton active={view === "home"} symbol="⌂" label="首頁" onClick={() => setView("home")} />
         <NavButton active={view === "library"} symbol="▤" label="書庫" onClick={() => setView("library")} />
         <NavButton active={view === "favorites"} symbol="♥" label="最愛" onClick={() => setView("favorites")} />
-        <NavButton active={view === "wishes"} symbol="✦" label="許願" onClick={() => setView("wishes")} />
+        <NavButton active={view === "wishes"} symbol="✦" label="許願" onClick={openWishes} />
       </nav>
 
       {selectedBook && (

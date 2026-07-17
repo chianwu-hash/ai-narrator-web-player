@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isRequestAuthenticated } from "@/lib/auth";
-import { createBookWish, wishesAvailable } from "@/lib/wishes-server";
+import { createBookWish, listPublicBookWishes, wishesAvailable } from "@/lib/wishes-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -38,5 +38,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, wish });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "許願送出失敗。" }, { status: 400 });
+  }
+}
+
+export async function GET() {
+  if (!await isRequestAuthenticated()) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!wishesAvailable()) return NextResponse.json({ error: "許願池尚未設定資料庫。" }, { status: 503 });
+  try {
+    const wishes = await listPublicBookWishes();
+    return NextResponse.json({ wishes });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "願望讀取失敗。" }, { status: 400 });
   }
 }

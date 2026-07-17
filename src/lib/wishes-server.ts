@@ -12,6 +12,7 @@ type WishRow = {
 };
 
 const WISH_SELECT = "id,title,author,reason,status,created_at,updated_at,deleted_at";
+const coverCache = new Map<string, string | null>();
 
 function isSupabaseConfigured(): boolean {
   return Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
@@ -49,6 +50,37 @@ function publicWish(row: WishRow) {
   };
 }
 
+type OpenLibrarySearchResponse = {
+  docs?: Array<{
+    cover_i?: number;
+  }>;
+};
+
+async function findCoverUrl(title: string, author?: string): Promise<string | undefined> {
+  const key = `${title}::${author ?? ""}`.toLowerCase();
+  if (coverCache.has(key)) return coverCache.get(key) ?? undefined;
+  const query = new URLSearchParams({ title });
+  if (author) query.set("author", author);
+  query.set("limit", "1");
+  query.set("fields", "cover_i");
+  try {
+    const response = await fetch(`https://openlibrary.org/search.json?${query.toString()}`, {
+      headers: { "user-agent": "ai-narrator-web-player/1.0" },
+      cache: "force-cache",
+      next: { revalidate: 60 * 60 * 24 * 7 },
+    });
+    if (!response.ok) throw new Error("Open Library search failed");
+    const data = await response.json() as OpenLibrarySearchResponse;
+    const coverId = data.docs?.find((doc) => typeof doc.cover_i === "number")?.cover_i;
+    const coverUrl = coverId ? `https://covers.openlibrary.org/b/id/${coverId}-M.jpg` : null;
+    coverCache.set(key, coverUrl);
+    return coverUrl ?? undefined;
+  } catch {
+    coverCache.set(key, null);
+    return undefined;
+  }
+}
+
 export async function createBookWish(input: unknown) {
   const parsed = validateBookWish(input);
   if (!parsed.ok) throw new Error(parsed.error);
@@ -73,6 +105,17 @@ export async function listAdminBookWishes(statusInput: unknown = "new") {
     `book_wishes?deleted_at=is.null${statusFilter}&select=${WISH_SELECT}&order=created_at.desc&limit=200`,
   );
   return rows.map(publicWish);
+}
+
+export async function listPublicBookWishes() {
+  const rows = await supabaseFetch<WishRow[]>(
+    `book_wishes?deleted_at=is.null&select=${WISH_SELECT}&order=created_at.desc&limit=60`,
+  );
+  const wishes = await Promise.all(rows.map(async (row) => ({
+    ...publicWish(row),
+    coverUrl: await findCoverUrl(row.title, row.author ?? undefined),
+  })));
+  return wishes;
 }
 
 export async function updateAdminBookWishStatus(idInput: unknown, statusInput: unknown) {
