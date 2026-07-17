@@ -5,7 +5,7 @@ import { type CSSProperties, type FormEvent, useCallback, useEffect, useMemo, us
 import { useRouter } from "next/navigation";
 import { EMPTY_PLAYER_STATE, resumePosition, toggleBookFavorite, toggleEpisodeFavorite, upsertProgress } from "@/lib/progress-model";
 import { loadPlayerState, savePlayerState } from "@/lib/progress-store";
-import type { Book, Episode, LibraryResponse, LocalPlayerState } from "@/lib/types";
+import type { Book, Episode, LibraryResponse, LocalPlayerState, ThemeId } from "@/lib/types";
 import { SyncControls } from "./sync-controls";
 import "./audio-library-app.css";
 
@@ -36,6 +36,18 @@ type WishItem = {
   createdAt: string;
   coverUrl?: string;
 };
+type ThemeOption = {
+  id: ThemeId;
+  label: string;
+  description: string;
+  symbol: string;
+};
+
+const THEME_OPTIONS: ThemeOption[] = [
+  { id: "study-green", label: "書房綠", description: "沉穩、私密，適合預設聽書。", symbol: "●" },
+  { id: "paper-warm", label: "暖紙米", description: "像閱讀器的紙感，適合白天瀏覽。", symbol: "◇" },
+  { id: "night-ink", label: "夜間墨", description: "低亮度深色，適合睡前收聽。", symbol: "◐" },
+];
 
 function formatTime(seconds = 0): string {
   if (!Number.isFinite(seconds)) return "0:00";
@@ -177,6 +189,7 @@ export function AudioLibraryApp() {
   const activeEpisode = activeBook?.episodes.find((episode) => episode.id === activeEpisodeId);
   const activeProgress = activeEpisode ? localState.progress[activeEpisode.id] : undefined;
   const selectedBookComments = selectedBook ? comments.filter((comment) => comment.bookId === selectedBook.id) : [];
+  const activeTheme = localState.themeId;
 
   const favoriteBooks = books.filter((book) => localState.favoriteBookIds.includes(book.id));
   const favoriteEpisodes = useMemo(() => books.flatMap((book) => book.episodes.map((episode) => ({ book, episode })))
@@ -321,6 +334,10 @@ export function AudioLibraryApp() {
     if (audioRef.current) audioRef.current.playbackRate = value;
   }
 
+  function changeTheme(themeId: ThemeId) {
+    setLocalState((state) => ({ ...state, themeId }));
+  }
+
   function favoriteBook(id: string) { setLocalState((state) => toggleBookFavorite(state, id)); }
   function favoriteEpisode(id: string) { setLocalState((state) => toggleEpisodeFavorite(state, id)); }
 
@@ -434,7 +451,7 @@ export function AudioLibraryApp() {
   }
 
   return (
-    <div className="app-shell">
+    <div className="app-shell" data-theme={activeTheme}>
       <aside className="side-nav">
         <div className="brand"><span className="brand-mark">▰</span><strong>AI 說書人</strong></div>
         <nav aria-label="主要導覽">
@@ -456,6 +473,29 @@ export function AudioLibraryApp() {
         {!ready && <div className="loading-state"><div className="loading-disc" /><p>正在整理你的書庫…</p></div>}
         {library?.notice && <div className="notice" role="status"><b>目前使用示範內容</b><span>{library.notice}</span></div>}
         {ready && <SyncControls ready={ready} localState={localState} onStateMerged={setLocalState} onNotify={showMessage} />}
+        {ready && (
+          <section className="theme-panel" aria-label="播放器風格選擇">
+            <div className="theme-copy">
+              <b>播放器風格</b>
+              <span>選擇會保存在這台裝置；開啟同步後也會跟著同步。</span>
+            </div>
+            <div className="theme-options">
+              {THEME_OPTIONS.map((theme) => (
+                <button
+                  key={theme.id}
+                  type="button"
+                  className={activeTheme === theme.id ? "theme-option active" : "theme-option"}
+                  onClick={() => changeTheme(theme.id)}
+                  aria-pressed={activeTheme === theme.id}
+                >
+                  <span aria-hidden="true">{theme.symbol}</span>
+                  <b>{theme.label}</b>
+                  <small>{theme.description}</small>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
 
         {ready && view === "home" && (
           <>

@@ -17,6 +17,7 @@ const baseState: LocalPlayerState = {
   favoriteBookIds: ["book1"],
   favoriteEpisodeIds: ["ep1"],
   playbackRate: 1,
+  themeId: "study-green",
   lastEpisodeId: "ep1",
 };
 
@@ -58,4 +59,15 @@ test("normalizePlayerState rejects malformed fields", () => {
   assert.deepEqual(normalized.favoriteBookIds, ["book1"]);
   assert.deepEqual(normalized.favoriteEpisodeIds, []);
   assert.equal(normalized.playbackRate, 3);
+  assert.equal(normalized.themeId, "study-green");
+});
+
+test("normalizePlayerState keeps a valid theme", () => {
+  const normalized = normalizePlayerState({ themeId: "night-ink" });
+  assert.equal(normalized.themeId, "night-ink");
+});
+
+test("mergePlayerStates keeps incoming theme selection", () => {
+  const merged = mergePlayerStates(baseState, { ...baseState, themeId: "paper-warm" });
+  assert.equal(merged.themeId, "paper-warm");
 });

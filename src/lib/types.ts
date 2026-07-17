@@ -39,5 +39,8 @@ export type LocalPlayerState = {
   favoriteBookIds: string[];
   favoriteEpisodeIds: string[];
   playbackRate: number;
+  themeId: ThemeId;
   lastEpisodeId?: string;
 };
+
+export type ThemeId = "study-green" | "paper-warm" | "night-ink";

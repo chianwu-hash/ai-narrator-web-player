@@ -1,7 +1,7 @@
 import type { EpisodeProgress, LocalPlayerState } from "./types.ts";
 
 export const EMPTY_PLAYER_STATE: LocalPlayerState = {
-  progress: {}, favoriteBookIds: [], favoriteEpisodeIds: [], playbackRate: 1,
+  progress: {}, favoriteBookIds: [], favoriteEpisodeIds: [], playbackRate: 1, themeId: "study-green",
 };
 
 export function isEpisodeCompleted(position: number, duration: number): boolean {

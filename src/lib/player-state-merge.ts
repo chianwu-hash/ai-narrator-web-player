@@ -1,5 +1,5 @@
 import { EMPTY_PLAYER_STATE } from "./progress-model.ts";
-import type { EpisodeProgress, LocalPlayerState } from "./types.ts";
+import type { EpisodeProgress, LocalPlayerState, ThemeId } from "./types.ts";
 
 type FavoriteMergeMode = "incoming" | "union";
 
@@ -10,6 +10,10 @@ function stringArray(value: unknown): string[] {
 
 function numberValue(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function themeValue(value: unknown): ThemeId {
+  return value === "paper-warm" || value === "night-ink" || value === "study-green" ? value : "study-green";
 }
 
 function progressValue(value: unknown): Record<string, EpisodeProgress> {
@@ -41,6 +45,7 @@ export function normalizePlayerState(input: unknown): LocalPlayerState {
     favoriteBookIds: stringArray(value.favoriteBookIds),
     favoriteEpisodeIds: stringArray(value.favoriteEpisodeIds),
     playbackRate: Math.min(3, Math.max(0.5, numberValue(value.playbackRate, 1))),
+    themeId: themeValue(value.themeId),
     lastEpisodeId: typeof value.lastEpisodeId === "string" ? value.lastEpisodeId : undefined,
   };
 }
@@ -87,6 +92,7 @@ export function mergePlayerStates(
     favoriteBookIds: mergeIds(base.favoriteBookIds, incoming.favoriteBookIds, favoriteMode),
     favoriteEpisodeIds: mergeIds(base.favoriteEpisodeIds, incoming.favoriteEpisodeIds, favoriteMode),
     playbackRate: incoming.playbackRate || base.playbackRate || 1,
+    themeId: incoming.themeId || base.themeId || "study-green",
     lastEpisodeId: incoming.lastEpisodeId || base.lastEpisodeId,
   };
   return { ...merged, lastEpisodeId: newestLastEpisode(merged) };
