@@ -37,6 +37,20 @@ type WishItem = {
   createdAt: string;
   coverUrl?: string;
 };
+type PlayStatItem = {
+  targetType: "book" | "episode";
+  bookId: string;
+  bookTitle: string;
+  episodeId?: string;
+  episodeTitle?: string;
+  playCount: number;
+  lastPlayedAt: string;
+};
+type PlayStatsState = {
+  enabled: boolean;
+  popularBooks: PlayStatItem[];
+  popularEpisodes: PlayStatItem[];
+};
 type ThemeOption = {
   id: ThemeId;
   label: string;
@@ -116,6 +130,7 @@ export function AudioLibraryApp() {
   const pendingAutoplay = useRef(false);
   const lastSavedSecond = useRef(-1);
   const loadingMessageTimer = useRef<number | undefined>(undefined);
+  const lastPlayStatRef = useRef<{ episodeId?: string; trackedAt: number }>({ trackedAt: 0 });
   const [library, setLibrary] = useState<LibraryResponse | null>(null);
   const [localState, setLocalState] = useState<LocalPlayerState>(EMPTY_PLAYER_STATE);
   const [ready, setReady] = useState(false);
@@ -144,6 +159,7 @@ export function AudioLibraryApp() {
   const [wishes, setWishes] = useState<WishItem[]>([]);
   const [wishesLoading, setWishesLoading] = useState(false);
   const [wishesLoaded, setWishesLoaded] = useState(false);
+  const [playStats, setPlayStats] = useState<PlayStatsState>({ enabled: false, popularBooks: [], popularEpisodes: [] });
 
   const startAudioLoading = useCallback(() => {
     setAudioLoading(true);
@@ -207,6 +223,11 @@ export function AudioLibraryApp() {
     };
   }, [ready]);
 
+  useEffect(() => {
+    if (!ready) return;
+    void refreshPlayStats();
+  }, [ready]);
+
   const books = useMemo(() => library?.books ?? [], [library]);
   const selectedBook = books.find((book) => book.id === selectedBookId);
   const activeBook = books.find((book) => book.id === activeBookId);
@@ -223,6 +244,28 @@ export function AudioLibraryApp() {
     const latest = (book: Book) => Math.max(0, ...book.episodes.map((episode) => Date.parse(localState.progress[episode.id]?.lastPlayedAt ?? "" ) || 0));
     return latest(b) - latest(a);
   }).filter((book) => book.episodes.some((episode) => localState.progress[episode.id])).slice(0, 4), [books, localState.progress]);
+
+  const recentlyAddedBooks = useMemo(() => [...books].sort((a, b) => {
+    const addedAt = (book: Book) => Date.parse(book.modifiedTime ?? "") || 0;
+    return addedAt(b) - addedAt(a);
+  }).slice(0, 4), [books]);
+
+  const popularBookItems = useMemo(() => playStats.popularBooks
+    .map((stat) => {
+      const book = books.find((item) => item.id === stat.bookId);
+      return book ? { stat, book } : undefined;
+    })
+    .filter((item): item is { stat: PlayStatItem; book: Book } => Boolean(item))
+    .slice(0, 4), [books, playStats.popularBooks]);
+
+  const popularEpisodeItems = useMemo(() => playStats.popularEpisodes
+    .map((stat) => {
+      const book = books.find((item) => item.id === stat.bookId);
+      const episode = book?.episodes.find((item) => item.id === stat.episodeId);
+      return book && episode ? { stat, book, episode } : undefined;
+    })
+    .filter((item): item is { stat: PlayStatItem; book: Book; episode: Episode } => Boolean(item))
+    .slice(0, 5), [books, playStats.popularEpisodes]);
 
   const continueTarget = (() => {
     const saved = localState.lastEpisodeId;
@@ -262,6 +305,20 @@ export function AudioLibraryApp() {
     }
   }
 
+  async function refreshPlayStats() {
+    try {
+      const response = await fetch("/api/stats/play");
+      const data = await response.json().catch(() => ({}));
+      setPlayStats({
+        enabled: Boolean(data.enabled),
+        popularBooks: Array.isArray(data.popularBooks) ? data.popularBooks : [],
+        popularEpisodes: Array.isArray(data.popularEpisodes) ? data.popularEpisodes : [],
+      });
+    } catch {
+      setPlayStats({ enabled: false, popularBooks: [], popularEpisodes: [] });
+    }
+  }
+
   const commitProgress = useCallback((completed?: boolean) => {
     const audio = audioRef.current;
     if (!activeBook || !activeEpisode) return;
@@ -295,6 +352,24 @@ export function AudioLibraryApp() {
     });
   }
 
+  function trackContentPlay(book: Book, episode: Episode) {
+    if (library?.source !== "drive") return;
+    const now = Date.now();
+    if (lastPlayStatRef.current.episodeId === episode.id && now - lastPlayStatRef.current.trackedAt < 30_000) return;
+    lastPlayStatRef.current = { episodeId: episode.id, trackedAt: now };
+    void fetch("/api/stats/play", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        targetType: "episode",
+        bookId: book.id,
+        bookTitle: book.title,
+        episodeId: episode.id,
+        episodeTitle: episode.title,
+      }),
+    }).then(() => refreshPlayStats()).catch(() => {});
+  }
+
   function startEpisode(book: Book, episode: Episode, autoplay = true) {
     setActiveBookId(book.id);
     setActiveEpisodeId(episode.id);
@@ -306,6 +381,7 @@ export function AudioLibraryApp() {
       showMessage("目前是示範書庫；連接 Google Drive 後即可播放真實音訊。");
       return;
     }
+    if (autoplay) trackContentPlay(book, episode);
     if (autoplay) startAudioLoading();
     window.setTimeout(() => {
       audioRef.current?.load();
@@ -322,7 +398,6 @@ export function AudioLibraryApp() {
 
   useEffect(() => {
     if (!activeBook || !activeEpisode || !("mediaSession" in navigator)) return;
-    // eslint-disable-next-line react-hooks/immutability
     navigator.mediaSession.metadata = new MediaMetadata({ title: activeEpisode.title, artist: `第 ${activeEpisode.number} 集`, album: activeBook.title });
     const audio = audioRef.current;
     const setHandler = (action: MediaSessionAction, handler: MediaSessionActionHandler) => {
@@ -343,7 +418,10 @@ export function AudioLibraryApp() {
     if (library?.source === "mock") return showMessage("示範書庫不含音檔；完成 Drive 設定後，播放與拖曳就會啟用。");
     const audio = audioRef.current;
     if (!audio) return;
-    if (audio.paused) requestAudioPlay(audio); else audio.pause();
+    if (audio.paused) {
+      if (activeBook && activeEpisode) trackContentPlay(activeBook, activeEpisode);
+      requestAudioPlay(audio);
+    } else audio.pause();
   }
 
   function seek(delta: number) {
@@ -546,7 +624,10 @@ export function AudioLibraryApp() {
                 </div>
               </section>
             )}
-            <BookSection title="最近播放" books={recentBooks.length ? recentBooks : books.slice(0, 4)} localState={localState} onOpen={openBook} onFavorite={favoriteBook} />
+            {recentBooks.length > 0 && <BookSection title="最近播放" books={recentBooks} localState={localState} onOpen={openBook} onFavorite={favoriteBook} />}
+            <BookSection title="最近新增" books={recentlyAddedBooks.length ? recentlyAddedBooks : books.slice(0, 4)} localState={localState} onOpen={openBook} onFavorite={favoriteBook} />
+            {popularBookItems.length > 0 && <BookSection title="熱門書籍" books={popularBookItems.map(({ book }) => book)} localState={localState} onOpen={openBook} onFavorite={favoriteBook} />}
+            {popularEpisodeItems.length > 0 && <PopularEpisodeSection items={popularEpisodeItems} onPlay={(book, episode) => startEpisode(book, episode, true)} />}
             {favoriteBooks.length > 0 && <BookSection title="我的最愛" books={favoriteBooks.slice(0, 4)} localState={localState} onOpen={openBook} onFavorite={favoriteBook} />}
           </>
         )}
@@ -754,6 +835,27 @@ export function AudioLibraryApp() {
       {slowLoading && !message && <div className="toast audio-loading-toast" role="status"><PlayerSpinner />正在載入音訊…</div>}
       {message && <div className="toast" role="status">{message}</div>}
     </div>
+  );
+}
+
+function PopularEpisodeSection({ items, onPlay }: { items: { stat: PlayStatItem; book: Book; episode: Episode }[]; onPlay: (book: Book, episode: Episode) => void }) {
+  return (
+    <section className="ranking-section">
+      <div className="section-heading"><h2>熱門單集</h2><span>匿名播放排行</span></div>
+      <div className="ranking-list">
+        {items.map(({ stat, book, episode }, index) => (
+          <button className="ranking-row" key={stat.episodeId ?? episode.id} onClick={() => onPlay(book, episode)}>
+            <span className="ranking-rank">{index + 1}</span>
+            <span className="ranking-copy">
+              <b>{episode.title}</b>
+              <small>{book.title}</small>
+            </span>
+            <span className="ranking-count">{stat.playCount} 次</span>
+            <span className="row-play" aria-hidden="true">▶</span>
+          </button>
+        ))}
+      </div>
+    </section>
   );
 }
 
