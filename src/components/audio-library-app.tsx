@@ -128,6 +128,7 @@ export function AudioLibraryApp() {
   const router = useRouter();
   const audioRef = useRef<HTMLAudioElement>(null);
   const pendingAutoplay = useRef(false);
+  const playRequestInFlight = useRef(false);
   const lastSavedSecond = useRef(-1);
   const loadingMessageTimer = useRef<number | undefined>(undefined);
   const lastPlayStatRef = useRef<{ episodeId?: string; trackedAt: number }>({ trackedAt: 0 });
@@ -227,6 +228,11 @@ export function AudioLibraryApp() {
     if (!ready) return;
     void refreshPlayStats();
   }, [ready]);
+
+  useEffect(() => {
+    if (!ready || library?.source !== "drive" || !activeEpisodeId) return;
+    audioRef.current?.load();
+  }, [activeEpisodeId, library?.source, ready]);
 
   const books = useMemo(() => library?.books ?? [], [library]);
   const selectedBook = books.find((book) => book.id === selectedBookId);
@@ -344,8 +350,15 @@ export function AudioLibraryApp() {
   }
 
   function requestAudioPlay(audio: HTMLAudioElement) {
+    if (playRequestInFlight.current) return;
     startAudioLoading();
-    void audio.play().catch(() => {
+    playRequestInFlight.current = true;
+    void audio.play().then(() => {
+      playRequestInFlight.current = false;
+      pendingAutoplay.current = false;
+    }).catch((error: unknown) => {
+      playRequestInFlight.current = false;
+      if (pendingAutoplay.current && error instanceof DOMException && error.name === "AbortError") return;
       pendingAutoplay.current = false;
       stopAudioLoading();
       showMessage("瀏覽器暫時無法播放這個音檔。");
@@ -371,9 +384,11 @@ export function AudioLibraryApp() {
   }
 
   function startEpisode(book: Book, episode: Episode, autoplay = true) {
+    const sameEpisode = activeEpisodeId === episode.id;
     setActiveBookId(book.id);
     setActiveEpisodeId(episode.id);
     setSelectedBookId(undefined);
+    setPlaying(false);
     setPosition(localState.progress[episode.id]?.position ?? 0);
     setDuration(localState.progress[episode.id]?.duration || episode.duration || 0);
     pendingAutoplay.current = autoplay;
@@ -383,17 +398,19 @@ export function AudioLibraryApp() {
     }
     if (autoplay) trackContentPlay(book, episode);
     if (autoplay) startAudioLoading();
-    window.setTimeout(() => {
-      audioRef.current?.load();
-      if (autoplay && audioRef.current) requestAudioPlay(audioRef.current);
+    if (sameEpisode && autoplay) window.setTimeout(() => {
+      const audio = audioRef.current;
+      if (!audio) return;
+      audio.currentTime = resumePosition(localState.progress[episode.id]);
+      requestAudioPlay(audio);
     }, 0);
   }
 
-  function changeEpisode(offset: number) {
+  function changeEpisode(offset: number, commitCurrent = true) {
     if (!activeBook || !activeEpisode) return;
     const index = activeBook.episodes.findIndex((episode) => episode.id === activeEpisode.id);
     const next = activeBook.episodes[index + offset];
-    if (next) { commitProgress(); startEpisode(activeBook, next, true); }
+    if (next) { if (commitCurrent) commitProgress(); startEpisode(activeBook, next, true); }
   }
 
   useEffect(() => {
@@ -822,15 +839,16 @@ export function AudioLibraryApp() {
         ref={audioRef}
         src={activeEpisode && library?.source === "drive" ? `/api/audio/${activeEpisode.id}` : undefined}
         preload="metadata"
-        onLoadedMetadata={(event) => { const audio = event.currentTarget; const restored = resumePosition(activeProgress); audio.currentTime = restored; audio.playbackRate = localState.playbackRate; setPosition(restored); setDuration(audio.duration); if (pendingAutoplay.current) { pendingAutoplay.current = false; requestAudioPlay(audio); } }}
-        onPlay={() => { pendingAutoplay.current = false; setPlaying(true); }}
+        onLoadedMetadata={(event) => { const audio = event.currentTarget; const restored = resumePosition(activeProgress); audio.currentTime = restored; audio.playbackRate = localState.playbackRate; setPosition(restored); setDuration(audio.duration); if (pendingAutoplay.current) requestAudioPlay(audio); }}
+        onCanPlay={(event) => { if (pendingAutoplay.current) requestAudioPlay(event.currentTarget); }}
+        onPlay={() => { playRequestInFlight.current = false; pendingAutoplay.current = false; setPlaying(true); }}
         onPlaying={() => { stopAudioLoading(); setPlaying(true); }}
         onWaiting={() => startAudioLoading()}
         onStalled={(event) => { if (!event.currentTarget.paused) startAudioLoading(); }}
-        onPause={() => { pendingAutoplay.current = false; stopAudioLoading(); setPlaying(false); commitProgress(); }}
+        onPause={() => { playRequestInFlight.current = false; setPlaying(false); if (pendingAutoplay.current) return; stopAudioLoading(); commitProgress(); }}
         onTimeUpdate={(event) => { const audio = event.currentTarget; setPosition(audio.currentTime); setDuration(audio.duration); const second = Math.floor(audio.currentTime); if (second % 5 === 0 && second !== lastSavedSecond.current) { lastSavedSecond.current = second; commitProgress(); } }}
-        onEnded={() => { stopAudioLoading(); commitProgress(true); setPlaying(false); changeEpisode(1); }}
-        onError={() => { pendingAutoplay.current = false; stopAudioLoading(); showMessage("音訊讀取失敗，請檢查 Drive 權限或稍後再試。"); }}
+        onEnded={() => { playRequestInFlight.current = false; stopAudioLoading(); commitProgress(true); setPlaying(false); changeEpisode(1, false); }}
+        onError={() => { playRequestInFlight.current = false; pendingAutoplay.current = false; stopAudioLoading(); showMessage("音訊讀取失敗，請檢查 Drive 權限或稍後再試。"); }}
       />
       {slowLoading && !message && <div className="toast audio-loading-toast" role="status"><PlayerSpinner />正在載入音訊…</div>}
       {message && <div className="toast" role="status">{message}</div>}
