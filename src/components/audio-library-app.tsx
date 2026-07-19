@@ -58,6 +58,9 @@ type ThemeOption = {
   symbol: string;
 };
 
+const NEXT_EPISODE_PREWARM_SECONDS = 30;
+const NEXT_EPISODE_PREWARM_BYTES = 1024 * 1024;
+
 const THEME_OPTIONS: ThemeOption[] = [
   { id: "study-green", label: "書房綠", description: "沉穩、私密，適合預設聽書。", symbol: "●" },
   { id: "paper-warm", label: "暖紙米", description: "像閱讀器的紙感，適合白天瀏覽。", symbol: "◇" },
@@ -129,6 +132,7 @@ export function AudioLibraryApp() {
   const audioRef = useRef<HTMLAudioElement>(null);
   const pendingAutoplay = useRef(false);
   const playRequestInFlight = useRef(false);
+  const prewarmedNextEpisodeId = useRef<string | undefined>(undefined);
   const lastSavedSecond = useRef(-1);
   const loadingMessageTimer = useRef<number | undefined>(undefined);
   const lastPlayStatRef = useRef<{ episodeId?: string; trackedAt: number }>({ trackedAt: 0 });
@@ -383,6 +387,28 @@ export function AudioLibraryApp() {
     }).then(() => refreshPlayStats()).catch(() => {});
   }
 
+  function nextEpisodeOf(book: Book, episode: Episode): Episode | undefined {
+    const index = book.episodes.findIndex((item) => item.id === episode.id);
+    return index >= 0 ? book.episodes[index + 1] : undefined;
+  }
+
+  function prewarmNextEpisode(currentPosition: number, currentDuration: number) {
+    if (library?.source !== "drive" || !activeBook || !activeEpisode) return;
+    const durationValue = Number.isFinite(currentDuration) && currentDuration > 0 ? currentDuration : activeEpisode.duration ?? 0;
+    if (!durationValue || durationValue - currentPosition > NEXT_EPISODE_PREWARM_SECONDS) return;
+    const next = nextEpisodeOf(activeBook, activeEpisode);
+    if (!next || prewarmedNextEpisodeId.current === next.id) return;
+    prewarmedNextEpisodeId.current = next.id;
+    void fetch(`/api/audio/${encodeURIComponent(next.id)}`, {
+      headers: { range: `bytes=0-${NEXT_EPISODE_PREWARM_BYTES - 1}` },
+      cache: "force-cache",
+    }).then(async (response) => {
+      if (response.ok || response.status === 206) await response.arrayBuffer();
+    }).catch(() => {
+      if (prewarmedNextEpisodeId.current === next.id) prewarmedNextEpisodeId.current = undefined;
+    });
+  }
+
   function startEpisode(book: Book, episode: Episode, autoplay = true) {
     const sameEpisode = activeEpisodeId === episode.id;
     setActiveBookId(book.id);
@@ -408,8 +434,9 @@ export function AudioLibraryApp() {
 
   function changeEpisode(offset: number, commitCurrent = true) {
     if (!activeBook || !activeEpisode) return;
-    const index = activeBook.episodes.findIndex((episode) => episode.id === activeEpisode.id);
-    const next = activeBook.episodes[index + offset];
+    const next = offset === 1
+      ? nextEpisodeOf(activeBook, activeEpisode)
+      : activeBook.episodes[activeBook.episodes.findIndex((episode) => episode.id === activeEpisode.id) + offset];
     if (next) { if (commitCurrent) commitProgress(); startEpisode(activeBook, next, true); }
   }
 
@@ -846,7 +873,7 @@ export function AudioLibraryApp() {
         onWaiting={() => startAudioLoading()}
         onStalled={(event) => { if (!event.currentTarget.paused) startAudioLoading(); }}
         onPause={() => { playRequestInFlight.current = false; setPlaying(false); if (pendingAutoplay.current) return; stopAudioLoading(); commitProgress(); }}
-        onTimeUpdate={(event) => { const audio = event.currentTarget; setPosition(audio.currentTime); setDuration(audio.duration); const second = Math.floor(audio.currentTime); if (second % 5 === 0 && second !== lastSavedSecond.current) { lastSavedSecond.current = second; commitProgress(); } }}
+        onTimeUpdate={(event) => { const audio = event.currentTarget; setPosition(audio.currentTime); setDuration(audio.duration); prewarmNextEpisode(audio.currentTime, audio.duration); const second = Math.floor(audio.currentTime); if (second % 5 === 0 && second !== lastSavedSecond.current) { lastSavedSecond.current = second; commitProgress(); } }}
         onEnded={() => { playRequestInFlight.current = false; stopAudioLoading(); commitProgress(true); setPlaying(false); changeEpisode(1, false); }}
         onError={() => { playRequestInFlight.current = false; pendingAutoplay.current = false; stopAudioLoading(); showMessage("音訊讀取失敗，請檢查 Drive 權限或稍後再試。"); }}
       />
