@@ -10,6 +10,7 @@ export function AdminCoverUpload({ bookId, hasCover }: { bookId: string; hasCove
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [selectedFileName, setSelectedFileName] = useState("");
 
   async function uploadCover() {
     const file = inputRef.current?.files?.[0];
@@ -39,6 +40,7 @@ export function AdminCoverUpload({ bookId, hasCover }: { bookId: string; hasCove
       if (!response.ok) throw new Error(typeof data.error === "string" ? data.error : "封面更新失敗。");
       setMessage("封面已更新。");
       if (inputRef.current) inputRef.current.value = "";
+      setSelectedFileName("");
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "封面更新失敗。");
@@ -49,7 +51,19 @@ export function AdminCoverUpload({ bookId, hasCover }: { bookId: string; hasCove
 
   return (
     <div className="admin-cover-actions">
-      <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} />
+      <input
+        ref={inputRef}
+        className="admin-cover-file-input"
+        id={`cover-file-${bookId}`}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        disabled={busy}
+        onChange={(event) => setSelectedFileName(event.currentTarget.files?.[0]?.name ?? "")}
+      />
+      <label className="admin-cover-file-button" htmlFor={`cover-file-${bookId}`}>
+        選擇圖片
+      </label>
+      <span className="admin-cover-file-name">{selectedFileName || "尚未選擇檔案"}</span>
       <button type="button" onClick={uploadCover} disabled={busy}>
         {busy ? "上傳中" : hasCover ? "替換封面" : "上傳封面"}
       </button>

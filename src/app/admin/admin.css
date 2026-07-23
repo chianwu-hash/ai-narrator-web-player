@@ -522,19 +522,49 @@
 
 .admin-cover-actions {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) auto;
+  grid-template-columns: auto minmax(180px, 1fr) auto;
   gap: 10px;
   align-items: center;
   margin-top: 4px;
 }
 
-.admin-cover-actions input {
+.admin-cover-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.admin-cover-file-button,
+.admin-cover-file-name {
   min-height: 42px;
-  padding: 8px;
   border: 1px solid var(--line);
   border-radius: 13px;
   background: white;
   color: var(--ink);
+}
+
+.admin-cover-file-button {
+  padding: 0 16px;
+  display: inline-grid;
+  place-items: center;
+  color: var(--forest);
+  background: #e9f3ee;
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.admin-cover-file-name {
+  min-width: 0;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .admin-cover-actions button {
@@ -549,7 +579,7 @@
 }
 
 .admin-cover-actions button:disabled,
-.admin-cover-actions input:disabled {
+.admin-cover-file-input:disabled + .admin-cover-file-button {
   opacity: .55;
   cursor: wait;
 }
