@@ -11,7 +11,8 @@
 
 .admin-login-card,
 .admin-panel,
-.admin-comment-card {
+.admin-comment-card,
+.admin-cover-card {
   background: rgba(255, 253, 247, .92);
   border: 1px solid var(--line);
   box-shadow: var(--shadow);
@@ -223,7 +224,7 @@
 
 .admin-dashboard-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
   gap: 16px;
   margin: 34px 0 20px;
 }
@@ -454,6 +455,112 @@
   font-size: 12px;
 }
 
+.admin-cover-list {
+  display: grid;
+  gap: 14px;
+}
+
+.admin-cover-card {
+  padding: 16px;
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr);
+  gap: 18px;
+  border-radius: 22px;
+}
+
+.admin-cover-preview {
+  position: relative;
+  width: 140px;
+  aspect-ratio: 1 / 1.28;
+  overflow: hidden;
+  border-radius: 18px;
+  background: #143f35;
+  box-shadow: 0 12px 28px rgba(21, 48, 43, .14);
+}
+
+.admin-cover-preview img {
+  object-fit: cover;
+}
+
+.admin-cover-preview-fallback {
+  display: grid;
+  place-items: center;
+  color: #fffaf0;
+}
+
+.admin-cover-preview-fallback span {
+  font-size: 44px;
+  font-weight: 800;
+}
+
+.admin-cover-preview-fallback small {
+  position: absolute;
+  bottom: 14px;
+  color: rgba(255, 250, 240, .72);
+  font-size: 10px;
+  letter-spacing: .16em;
+}
+
+.admin-cover-info {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+
+.admin-cover-info h2 {
+  margin: 2px 0 0;
+  font-size: clamp(20px, 3vw, 28px);
+  letter-spacing: -.04em;
+}
+
+.admin-cover-info p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.admin-cover-actions {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.admin-cover-actions input {
+  min-height: 42px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: white;
+  color: var(--ink);
+}
+
+.admin-cover-actions button {
+  min-height: 42px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 13px;
+  color: white;
+  background: var(--forest);
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.admin-cover-actions button:disabled,
+.admin-cover-actions input:disabled {
+  opacity: .55;
+  cursor: wait;
+}
+
+.admin-cover-actions small {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
 @media (max-width: 620px) {
   .admin-header {
     display: grid;
@@ -473,7 +580,13 @@
   }
 
   .admin-device-stats,
-  .admin-device-row {
+  .admin-device-row,
+  .admin-cover-card,
+  .admin-cover-actions {
     grid-template-columns: 1fr;
+  }
+
+  .admin-cover-preview {
+    width: min(180px, 70vw);
   }
 }

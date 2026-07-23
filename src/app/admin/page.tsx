@@ -46,6 +46,14 @@ async function getAdminCards(): Promise<AdminCard[]> {
 
   return [
     {
+      href: "/admin/covers",
+      eyebrow: "COVERS",
+      title: "書封整理",
+      description: "檢查目前封面狀態，必要時手動上傳替換，讓播放器顯示正確版本。",
+      stat: "Drive",
+      statLabel: "手動整理",
+    },
+    {
       href: "/admin/comments",
       eyebrow: "COMMENTS",
       title: "留言管理",

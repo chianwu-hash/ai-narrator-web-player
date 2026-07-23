@@ -1,11 +1,12 @@
 import Link from "next/link";
 
-type AdminSection = "dashboard" | "comments" | "wishes" | "devices";
+type AdminSection = "dashboard" | "comments" | "wishes" | "devices" | "covers";
 
 const adminLinks: { key: AdminSection; href: string; label: string; description: string }[] = [
   { key: "dashboard", href: "/admin", label: "總覽", description: "管理入口" },
   { key: "comments", href: "/admin/comments", label: "留言管理", description: "感想與錯誤回報" },
   { key: "wishes", href: "/admin/wishes", label: "許願池", description: "想聽書單" },
+  { key: "covers", href: "/admin/covers", label: "書封整理", description: "手動替換封面" },
   { key: "devices", href: "/admin/devices", label: "設備監控", description: "匿名設備活動" },
 ];
 

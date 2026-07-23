@@ -3,6 +3,9 @@ import { indexBookFolder, type DriveItem } from "./library.ts";
 import type { Book } from "./types.ts";
 
 const DRIVE_API = "https://www.googleapis.com/drive/v3";
+const DRIVE_UPLOAD_API = "https://www.googleapis.com/upload/drive/v3";
+const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive";
+const FOLDER_MIME_TYPE = "application/vnd.google-apps.folder";
 let tokenCache: { token: string; expiresAt: number } | undefined;
 
 export class DriveApiError extends Error {
@@ -44,7 +47,7 @@ async function accessToken(): Promise<string> {
   const header = base64Url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
   const claim = base64Url(JSON.stringify({
     iss: serviceAccount.email,
-    scope: "https://www.googleapis.com/auth/drive.readonly",
+    scope: DRIVE_SCOPE,
     aud: "https://oauth2.googleapis.com/token",
     iat: now,
     exp: now + 3600,
@@ -75,6 +78,16 @@ async function driveFetch(path: string, init?: RequestInit): Promise<Response> {
   return response;
 }
 
+async function driveUploadFetch(path: string, init?: RequestInit): Promise<Response> {
+  const response = await fetch(`${DRIVE_UPLOAD_API}${path}`, {
+    ...init,
+    headers: { Authorization: `Bearer ${await accessToken()}`, ...init?.headers },
+    cache: init?.cache ?? "no-store",
+  });
+  if (!response.ok) throw new DriveApiError(response.status, driveErrorMessage(response.status));
+  return response;
+}
+
 async function listChildren(parentId: string): Promise<DriveItem[]> {
   const files: DriveItem[] = [];
   let pageToken: string | undefined;
@@ -95,10 +108,15 @@ async function listChildren(parentId: string): Promise<DriveItem[]> {
   return files;
 }
 
+async function getDriveFile(fileId: string, fields = "id,name,mimeType,parents,modifiedTime,size"): Promise<DriveItem & { parents?: string[] }> {
+  const response = await driveFetch(`/files/${encodeURIComponent(fileId)}?fields=${encodeURIComponent(fields)}&supportsAllDrives=true`);
+  return response.json() as Promise<DriveItem & { parents?: string[] }>;
+}
+
 export async function buildDriveLibrary(): Promise<Book[]> {
   const rootId = process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID;
   if (!rootId) throw new Error("GOOGLE_DRIVE_ROOT_FOLDER_ID is not configured");
-  const folders = (await listChildren(rootId)).filter((item) => item.mimeType === "application/vnd.google-apps.folder");
+  const folders = (await listChildren(rootId)).filter((item) => item.mimeType === FOLDER_MIME_TYPE);
   const books = await Promise.all(folders.map(async (folder) => indexBookFolder(folder, await listChildren(folder.id))));
   return books.filter((book): book is Book => Boolean(book)).sort((a, b) => a.title.localeCompare(b.title, "zh-Hant"));
 }
@@ -106,12 +124,10 @@ export async function buildDriveLibrary(): Promise<Book[]> {
 async function fileIsInsideRoot(fileId: string): Promise<boolean> {
   const rootId = process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID;
   if (!rootId) return false;
-  const metadata = await driveFetch(`/files/${encodeURIComponent(fileId)}?fields=id,parents&supportsAllDrives=true`);
-  const file = await metadata.json() as { parents?: string[] };
+  const file = await getDriveFile(fileId, "id,parents");
   for (const parentId of file.parents ?? []) {
     if (parentId === rootId) return true;
-    const parentResponse = await driveFetch(`/files/${encodeURIComponent(parentId)}?fields=id,parents&supportsAllDrives=true`);
-    const parent = await parentResponse.json() as { parents?: string[] };
+    const parent = await getDriveFile(parentId, "id,parents");
     if (parent.parents?.includes(rootId)) return true;
   }
   return false;
@@ -132,4 +148,85 @@ export function normalizeAudioRange(range?: string | null): string {
   const requestedEnd = match?.[2] ? Number(match[2]) : Number.POSITIVE_INFINITY;
   const end = Math.min(requestedEnd, start + AUDIO_CHUNK_BYTES - 1);
   return `bytes=${start}-${end}`;
+}
+
+function coverNameForMime(mimeType: string): string {
+  if (mimeType === "image/png") return "cover.png";
+  if (mimeType === "image/webp") return "cover.webp";
+  return "cover.jpg";
+}
+
+function findCover(children: DriveItem[]): DriveItem | undefined {
+  const image = (file: DriveItem) => ["image/jpeg", "image/png", "image/webp"].includes(file.mimeType);
+  return children.find((file) => image(file) && /cover|封面/i.test(file.name))
+    ?? children.find((file) => image(file));
+}
+
+async function assertBookFolder(bookId: string): Promise<DriveItem> {
+  const rootId = process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID;
+  if (!rootId) throw new Error("GOOGLE_DRIVE_ROOT_FOLDER_ID is not configured");
+  const folder = await getDriveFile(bookId);
+  if (folder.mimeType !== FOLDER_MIME_TYPE || !folder.parents?.includes(rootId)) {
+    throw new DriveApiError(404, "指定資料夾不在允許的書庫範圍內。");
+  }
+  return folder;
+}
+
+function multipartDriveBody(metadata: Record<string, unknown>, data: Buffer, mimeType: string) {
+  const boundary = `codex-cover-${Date.now().toString(36)}`;
+  const head = Buffer.from(
+    `--${boundary}\r\ncontent-type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n`
+    + `--${boundary}\r\ncontent-type: ${mimeType}\r\n\r\n`,
+    "utf8",
+  );
+  const tail = Buffer.from(`\r\n--${boundary}--\r\n`, "utf8");
+  return {
+    boundary,
+    body: new Uint8Array(Buffer.concat([head, data, tail])),
+  };
+}
+
+async function createDriveCover(bookId: string, data: Buffer, mimeType: string): Promise<DriveItem> {
+  const { boundary, body } = multipartDriveBody({
+    name: coverNameForMime(mimeType),
+    parents: [bookId],
+    mimeType,
+  }, data, mimeType);
+  const response = await driveUploadFetch("/files?uploadType=multipart&supportsAllDrives=true&fields=id,name,mimeType,modifiedTime,size", {
+    method: "POST",
+    headers: { "content-type": `multipart/related; boundary=${boundary}` },
+    body,
+  });
+  return response.json() as Promise<DriveItem>;
+}
+
+async function updateDriveCover(fileId: string, data: Buffer, mimeType: string): Promise<DriveItem> {
+  const { boundary, body } = multipartDriveBody({
+    name: coverNameForMime(mimeType),
+    mimeType,
+  }, data, mimeType);
+  const response = await driveUploadFetch(`/files/${encodeURIComponent(fileId)}?uploadType=multipart&supportsAllDrives=true&fields=id,name,mimeType,modifiedTime,size`, {
+    method: "PATCH",
+    headers: { "content-type": `multipart/related; boundary=${boundary}` },
+    body,
+  });
+  return response.json() as Promise<DriveItem>;
+}
+
+export async function replaceBookCover(bookId: string, data: Buffer, mimeType: string): Promise<Book> {
+  if (!["image/jpeg", "image/png", "image/webp"].includes(mimeType)) {
+    throw new Error("只支援 JPG、PNG 或 WebP 封面。");
+  }
+  await assertBookFolder(bookId);
+  const before = await listChildren(bookId);
+  const currentCover = findCover(before);
+  if (currentCover) {
+    await updateDriveCover(currentCover.id, data, mimeType);
+  } else {
+    await createDriveCover(bookId, data, mimeType);
+  }
+  const folder = await getDriveFile(bookId);
+  const book = indexBookFolder(folder, await listChildren(bookId));
+  if (!book) throw new Error("封面已更新，但書籍資料夾沒有可用音檔。");
+  return book;
 }
