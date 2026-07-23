@@ -75,7 +75,8 @@ function formatTime(seconds = 0): string {
 
 function BookCover({ book, priority = false }: { book: Book; priority?: boolean }) {
   if (book.coverFileId) {
-    return <Image className="book-cover-image" src={`/api/cover/${book.coverFileId}`} alt={`${book.title}封面`} fill sizes="(max-width: 720px) 44vw, 190px" priority={priority} unoptimized />;
+    const version = book.coverVersion ? `?v=${encodeURIComponent(book.coverVersion)}` : "";
+    return <Image className="book-cover-image" src={`/api/cover/${book.coverFileId}${version}`} alt={`${book.title}封面`} fill sizes="(max-width: 720px) 44vw, 190px" priority={priority} unoptimized />;
   }
   return (
     <div className="book-cover-fallback" aria-label={`${book.title}沒有封面`}>

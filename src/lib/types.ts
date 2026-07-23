@@ -14,6 +14,7 @@ export type Book = {
   title: string;
   subtitle?: string;
   coverFileId?: string;
+  coverVersion?: string;
   modifiedTime?: string;
   episodes: Episode[];
 };

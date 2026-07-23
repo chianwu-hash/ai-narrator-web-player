@@ -67,6 +67,7 @@ export function indexBookFolder(folder: DriveItem, children: DriveItem[]): Book 
     id: folder.id,
     title: folder.name.trim(),
     coverFileId: cover?.id,
+    coverVersion: cover ? `${cover.modifiedTime ?? ""}:${cover.size ?? ""}` : undefined,
     modifiedTime: folder.modifiedTime,
     episodes,
   };
