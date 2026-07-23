@@ -18,7 +18,7 @@ export class DriveApiError extends Error {
 }
 
 export function driveErrorMessage(status: number): string {
-  if (status === 401 || status === 403) return "Google Drive 授權失敗，請檢查 service account 與資料夾分享權限。";
+  if (status === 401 || status === 403) return "Google Drive 授權失敗或沒有編輯權限，請檢查 service account 與資料夾分享權限。";
   if (status === 404) return "找不到指定的 Google Drive 資料夾或檔案。";
   if (status === 429) return "Google Drive 查詢次數暫時過多，請稍後再試。";
   return "Google Drive 暫時無法讀取，請稍後再試。";
@@ -84,7 +84,10 @@ async function driveUploadFetch(path: string, init?: RequestInit): Promise<Respo
     headers: { Authorization: `Bearer ${await accessToken()}`, ...init?.headers },
     cache: init?.cache ?? "no-store",
   });
-  if (!response.ok) throw new DriveApiError(response.status, driveErrorMessage(response.status));
+  if (!response.ok) {
+    const body = await response.json().catch(() => null) as { error?: { message?: string } } | null;
+    throw new DriveApiError(response.status, body?.error?.message ?? driveErrorMessage(response.status));
+  }
   return response;
 }
 
@@ -94,7 +97,7 @@ async function listChildren(parentId: string): Promise<DriveItem[]> {
   do {
     const params = new URLSearchParams({
       q: `'${parentId}' in parents and trashed = false`,
-      fields: "nextPageToken,files(id,name,mimeType,modifiedTime,size)",
+      fields: "nextPageToken,files(id,name,mimeType,modifiedTime,size,capabilities)",
       pageSize: "1000",
       supportsAllDrives: "true",
       includeItemsFromAllDrives: "true",
@@ -217,16 +220,22 @@ export async function replaceBookCover(bookId: string, data: Buffer, mimeType: s
   if (!["image/jpeg", "image/png", "image/webp"].includes(mimeType)) {
     throw new Error("只支援 JPG、PNG 或 WebP 封面。");
   }
-  await assertBookFolder(bookId);
+  const folder = await assertBookFolder(bookId);
   const before = await listChildren(bookId);
   const currentCover = findCover(before);
   if (currentCover) {
+    if (currentCover.capabilities && currentCover.capabilities.canEdit === false) {
+      throw new DriveApiError(403, "service account 對目前封面檔沒有編輯權限。請把書庫資料夾分享權限改成「編輯者」。");
+    }
     await updateDriveCover(currentCover.id, data, mimeType);
   } else {
+    if (folder.capabilities && folder.capabilities.canAddChildren === false) {
+      throw new DriveApiError(403, "service account 對這本書資料夾沒有新增檔案權限。請把書庫資料夾分享權限改成「編輯者」。");
+    }
     await createDriveCover(bookId, data, mimeType);
   }
-  const folder = await getDriveFile(bookId);
-  const book = indexBookFolder(folder, await listChildren(bookId));
+  const updatedFolder = await getDriveFile(bookId);
+  const book = indexBookFolder(updatedFolder, await listChildren(bookId));
   if (!book) throw new Error("封面已更新，但書籍資料夾沒有可用音檔。");
   return book;
 }

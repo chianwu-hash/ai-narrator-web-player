@@ -6,6 +6,10 @@ export type DriveItem = {
   mimeType: string;
   modifiedTime?: string;
   size?: string;
+  capabilities?: {
+    canAddChildren?: boolean;
+    canEdit?: boolean;
+  };
 };
 
 const AUDIO_MIME_TYPES = new Set([
