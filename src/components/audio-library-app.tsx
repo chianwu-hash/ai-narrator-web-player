@@ -493,6 +493,13 @@ export function AudioLibraryApp() {
     setLocalState((state) => ({ ...state, themeId }));
   }
 
+  function openActiveBookPlaylist() {
+    if (!activeBook) return;
+    commitProgress();
+    setSelectedBookId(activeBook.id);
+    setExpanded(false);
+  }
+
   function favoriteBook(id: string) { setLocalState((state) => toggleBookFavorite(state, id)); }
   function favoriteEpisode(id: string) { setLocalState((state) => toggleEpisodeFavorite(state, id)); }
 
@@ -863,7 +870,9 @@ export function AudioLibraryApp() {
       {expanded && activeBook && activeEpisode && (
         <section className="full-player" aria-modal="true" role="dialog" aria-label="完整播放器">
           <header><button onClick={() => setExpanded(false)} aria-label="收合播放器">⌄</button><span>正在播放</span><button onClick={() => favoriteEpisode(activeEpisode.id)} aria-label="收藏單集">{localState.favoriteEpisodeIds.includes(activeEpisode.id) ? "♥" : "♡"}</button></header>
-          <div className="full-cover"><BookCover book={activeBook} /></div>
+          <button className="full-cover full-cover-button" onClick={openActiveBookPlaylist} aria-label={`查看《${activeBook.title}》播放列表`}>
+            <BookCover book={activeBook} />
+          </button>
           <div className="full-copy"><p>{activeBook.title}</p><h2>{activeEpisode.title}</h2><span>第 {activeEpisode.number} 集</span></div>
           <div className="scrubber"><input aria-label="播放位置" type="range" min="0" max={duration || 1} value={Math.min(position, duration || 1)} onChange={(event) => { const value = Number(event.target.value); if (audioRef.current) audioRef.current.currentTime = value; setPosition(value); }} /><div><span>{formatTime(position)}</span><span>-{formatTime(Math.max(0, duration - position))}</span></div></div>
           <div className="full-controls"><button onClick={() => changeEpisode(-1)} aria-label="上一集">|◀</button><button onClick={() => seek(-15)} aria-label="倒退 15 秒">↶<small>15</small></button><button className="full-play" onClick={togglePlay} disabled={audioLoading} aria-busy={audioLoading} aria-label={audioLoading ? "正在載入音訊" : playing ? "暫停" : "播放"}>{audioLoading ? <PlayerSpinner /> : playing ? "Ⅱ" : "▶"}</button><button onClick={() => seek(30)} aria-label="快轉 30 秒">↷<small>30</small></button><button onClick={() => changeEpisode(1)} aria-label="下一集">▶|</button></div>

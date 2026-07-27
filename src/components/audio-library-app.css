@@ -272,6 +272,9 @@
 .full-player > header { width: min(100%, 520px); display: flex; justify-content: space-between; align-items: center; text-transform: uppercase; letter-spacing: .15em; font-size: 10px; }
 .full-player > header button { width: 42px; height: 42px; border: 0; background: transparent; color: white; font-size: 25px; cursor: pointer; }
 .full-cover { width: min(54vw, 310px); aspect-ratio: 3 / 4; margin: 28px auto 25px; position: relative; overflow: hidden; border-radius: 20px; box-shadow: 0 25px 60px rgba(0,0,0,.32); }
+.full-cover-button { display: block; padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; transition: transform .2s ease, box-shadow .2s ease; }
+.full-cover-button:hover { transform: translateY(-2px); box-shadow: 0 30px 70px rgba(0,0,0,.38); }
+.full-cover-button:focus-visible { outline: 3px solid rgba(255,255,255,.82); outline-offset: 5px; }
 .full-copy { width: min(100%, 520px); text-align: center; }
 .full-copy p { color: #f2a993; font-size: 11px; font-weight: 800; }
 .full-copy h2 { margin: 6px 0; font-size: clamp(24px, 5vw, 34px); letter-spacing: -.045em; }
