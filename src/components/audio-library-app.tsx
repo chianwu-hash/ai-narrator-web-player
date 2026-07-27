@@ -246,6 +246,7 @@ export function AudioLibraryApp() {
   const activeProgress = activeEpisode ? localState.progress[activeEpisode.id] : undefined;
   const selectedBookComments = selectedBook ? comments.filter((comment) => comment.bookId === selectedBook.id) : [];
   const activeTheme = localState.themeId;
+  const mediaPositionSecond = Math.floor(position);
 
   const favoriteBooks = books.filter((book) => localState.favoriteBookIds.includes(book.id));
   const favoriteEpisodes = useMemo(() => books.flatMap((book) => book.episodes.map((episode) => ({ book, episode })))
@@ -354,9 +355,44 @@ export function AudioLibraryApp() {
     window.setTimeout(() => setMessage(""), 4200);
   }
 
+  function setMediaPlaybackState(state: MediaSessionPlaybackState) {
+    if (!("mediaSession" in navigator)) return;
+    try { navigator.mediaSession.playbackState = state; } catch { /* Some WebKit versions expose partial Media Session support. */ }
+  }
+
+  function updateMediaPositionState(audio = audioRef.current) {
+    if (!("mediaSession" in navigator) || !activeEpisode) return;
+    const nextDuration = audio?.duration && Number.isFinite(audio.duration) ? audio.duration : duration || activeEpisode.duration || 0;
+    const nextPosition = audio?.currentTime && Number.isFinite(audio.currentTime) ? audio.currentTime : position;
+    if (!Number.isFinite(nextDuration) || nextDuration <= 0) return;
+    try {
+      navigator.mediaSession.setPositionState({
+        duration: nextDuration,
+        playbackRate: localState.playbackRate,
+        position: Math.max(0, Math.min(nextPosition, nextDuration)),
+      });
+    } catch { /* Unsupported or not yet ready on this browser. */ }
+  }
+
+  function resumeFromMediaSession() {
+    if (library?.source === "mock") {
+      showMessage("示範書庫不含音檔；完成 Drive 設定後，播放與拖曳就會啟用。");
+      return;
+    }
+    if (!activeEpisode && continueTarget) return startEpisode(continueTarget.book, continueTarget.episode, true);
+    const audio = audioRef.current;
+    if (!audio || !activeBook || !activeEpisode) return;
+    trackContentPlay(activeBook, activeEpisode);
+    setMediaPlaybackState("playing");
+    updateMediaPositionState(audio);
+    requestAudioPlay(audio);
+  }
+
   function requestAudioPlay(audio: HTMLAudioElement) {
     if (playRequestInFlight.current) return;
     startAudioLoading();
+    setMediaPlaybackState("playing");
+    updateMediaPositionState(audio);
     playRequestInFlight.current = true;
     void audio.play().then(() => {
       playRequestInFlight.current = false;
@@ -365,6 +401,7 @@ export function AudioLibraryApp() {
       playRequestInFlight.current = false;
       if (pendingAutoplay.current && error instanceof DOMException && error.name === "AbortError") return;
       pendingAutoplay.current = false;
+      setMediaPlaybackState("paused");
       stopAudioLoading();
       showMessage("瀏覽器暫時無法播放這個音檔。");
     });
@@ -452,19 +489,36 @@ export function AudioLibraryApp() {
         { src: "/app-icon-512.png", sizes: "512x512", type: "image/png" },
       ],
     });
-    const audio = audioRef.current;
     const setHandler = (action: MediaSessionAction, handler: MediaSessionActionHandler) => {
       try { navigator.mediaSession.setActionHandler(action, handler); } catch { /* Browser does not expose this action. */ }
     };
-    setHandler("play", () => void audio?.play());
-    setHandler("pause", () => audio?.pause());
-    setHandler("seekbackward", () => { if (audio) audio.currentTime = Math.max(0, audio.currentTime - 15); });
-    setHandler("seekforward", () => { if (audio) audio.currentTime = Math.min(audio.duration || Infinity, audio.currentTime + 30); });
+    setHandler("play", () => resumeFromMediaSession());
+    setHandler("pause", () => audioRef.current?.pause());
+    setHandler("seekbackward", () => { seek(-15); updateMediaPositionState(); });
+    setHandler("seekforward", () => { seek(30); updateMediaPositionState(); });
     setHandler("previoustrack", () => changeEpisode(-1));
     setHandler("nexttrack", () => changeEpisode(1));
+    setMediaPlaybackState(playing ? "playing" : "paused");
+    updateMediaPositionState();
+    return () => {
+      for (const action of ["play", "pause", "seekbackward", "seekforward", "previoustrack", "nexttrack"] as MediaSessionAction[]) {
+        try { navigator.mediaSession.setActionHandler(action, null); } catch { /* Ignore partial implementations. */ }
+      }
+    };
   // changeEpisode intentionally uses the latest render when metadata changes.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeBook, activeEpisode]);
+  }, [activeBook, activeEpisode, playing]);
+
+  useEffect(() => {
+    if (!activeEpisode || !("mediaSession" in navigator)) return;
+    setMediaPlaybackState(playing ? "playing" : "paused");
+  }, [activeEpisode, playing]);
+
+  useEffect(() => {
+    updateMediaPositionState();
+  // Updating once per rendered second is enough for lock-screen/headset controls.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeEpisode, duration, mediaPositionSecond, localState.playbackRate]);
 
   function togglePlay() {
     if (!activeEpisode && continueTarget) return startEpisode(continueTarget.book, continueTarget.episode, true);
@@ -473,7 +527,7 @@ export function AudioLibraryApp() {
     if (!audio) return;
     if (audio.paused) {
       if (activeBook && activeEpisode) trackContentPlay(activeBook, activeEpisode);
-      requestAudioPlay(audio);
+      resumeFromMediaSession();
     } else audio.pause();
   }
 
@@ -884,16 +938,16 @@ export function AudioLibraryApp() {
         ref={audioRef}
         src={activeEpisode && library?.source === "drive" ? `/api/audio/${activeEpisode.id}` : undefined}
         preload="metadata"
-        onLoadedMetadata={(event) => { const audio = event.currentTarget; const restored = resumePosition(activeProgress); audio.currentTime = restored; audio.playbackRate = localState.playbackRate; setPosition(restored); setDuration(audio.duration); if (pendingAutoplay.current) requestAudioPlay(audio); }}
+        onLoadedMetadata={(event) => { const audio = event.currentTarget; const restored = resumePosition(activeProgress); audio.currentTime = restored; audio.playbackRate = localState.playbackRate; setPosition(restored); setDuration(audio.duration); updateMediaPositionState(audio); if (pendingAutoplay.current) requestAudioPlay(audio); }}
         onCanPlay={(event) => { if (pendingAutoplay.current) requestAudioPlay(event.currentTarget); }}
-        onPlay={() => { playRequestInFlight.current = false; pendingAutoplay.current = false; setPlaying(true); }}
-        onPlaying={() => { stopAudioLoading(); setPlaying(true); }}
+        onPlay={(event) => { playRequestInFlight.current = false; pendingAutoplay.current = false; setMediaPlaybackState("playing"); updateMediaPositionState(event.currentTarget); setPlaying(true); }}
+        onPlaying={(event) => { stopAudioLoading(); setMediaPlaybackState("playing"); updateMediaPositionState(event.currentTarget); setPlaying(true); }}
         onWaiting={() => startAudioLoading()}
         onStalled={(event) => { if (!event.currentTarget.paused) startAudioLoading(); }}
-        onPause={() => { playRequestInFlight.current = false; setPlaying(false); if (pendingAutoplay.current) return; stopAudioLoading(); commitProgress(); }}
+        onPause={(event) => { playRequestInFlight.current = false; setMediaPlaybackState("paused"); updateMediaPositionState(event.currentTarget); setPlaying(false); if (pendingAutoplay.current) return; stopAudioLoading(); commitProgress(); }}
         onTimeUpdate={(event) => { const audio = event.currentTarget; setPosition(audio.currentTime); setDuration(audio.duration); prewarmNextEpisode(audio.currentTime, audio.duration); const second = Math.floor(audio.currentTime); if (second % 5 === 0 && second !== lastSavedSecond.current) { lastSavedSecond.current = second; commitProgress(); } }}
-        onEnded={() => { playRequestInFlight.current = false; stopAudioLoading(); commitProgress(true); setPlaying(false); changeEpisode(1, false); }}
-        onError={() => { playRequestInFlight.current = false; pendingAutoplay.current = false; stopAudioLoading(); showMessage("音訊讀取失敗，請檢查 Drive 權限或稍後再試。"); }}
+        onEnded={() => { playRequestInFlight.current = false; setMediaPlaybackState("paused"); stopAudioLoading(); commitProgress(true); setPlaying(false); changeEpisode(1, false); }}
+        onError={() => { playRequestInFlight.current = false; pendingAutoplay.current = false; setMediaPlaybackState("paused"); stopAudioLoading(); showMessage("音訊讀取失敗，請檢查 Drive 權限或稍後再試。"); }}
       />
       {slowLoading && !message && <div className="toast audio-loading-toast" role="status"><PlayerSpinner />正在載入音訊…</div>}
       {message && <div className="toast" role="status">{message}</div>}
