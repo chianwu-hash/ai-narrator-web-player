@@ -443,7 +443,15 @@ export function AudioLibraryApp() {
 
   useEffect(() => {
     if (!activeBook || !activeEpisode || !("mediaSession" in navigator)) return;
-    navigator.mediaSession.metadata = new MediaMetadata({ title: activeEpisode.title, artist: `第 ${activeEpisode.number} 集`, album: activeBook.title });
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: activeEpisode.title,
+      artist: `第 ${activeEpisode.number} 集`,
+      album: activeBook.title,
+      artwork: [
+        { src: "/app-icon-192.png", sizes: "192x192", type: "image/png" },
+        { src: "/app-icon-512.png", sizes: "512x512", type: "image/png" },
+      ],
+    });
     const audio = audioRef.current;
     const setHandler = (action: MediaSessionAction, handler: MediaSessionActionHandler) => {
       try { navigator.mediaSession.setActionHandler(action, handler); } catch { /* Browser does not expose this action. */ }
