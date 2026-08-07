@@ -111,9 +111,9 @@ async function listChildren(parentId: string): Promise<DriveItem[]> {
   return files;
 }
 
-async function getDriveFile(fileId: string, fields = "id,name,mimeType,parents,modifiedTime,size"): Promise<DriveItem & { parents?: string[] }> {
+async function getDriveFile(fileId: string, fields = "id,name,mimeType,parents,modifiedTime,size"): Promise<DriveItem & { parents?: string[]; trashed?: boolean }> {
   const response = await driveFetch(`/files/${encodeURIComponent(fileId)}?fields=${encodeURIComponent(fields)}&supportsAllDrives=true`);
-  return response.json() as Promise<DriveItem & { parents?: string[] }>;
+  return response.json() as Promise<DriveItem & { parents?: string[]; trashed?: boolean }>;
 }
 
 export async function buildDriveLibrary(): Promise<Book[]> {
@@ -132,6 +132,18 @@ async function fileIsInsideRoot(fileId: string): Promise<boolean> {
     if (parentId === rootId) return true;
     const parent = await getDriveFile(parentId, "id,parents");
     if (parent.parents?.includes(rootId)) return true;
+  }
+  return false;
+}
+
+export async function isAllowedAudioFile(fileId: string): Promise<boolean> {
+  const rootId = process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID;
+  if (!rootId) return false;
+  const file = await getDriveFile(fileId, "id,mimeType,parents,trashed");
+  if (!file.mimeType.startsWith("audio/") || file.trashed) return false;
+  for (const parentId of file.parents ?? []) {
+    const parent = await getDriveFile(parentId, "id,mimeType,parents,trashed");
+    if (parent.mimeType === FOLDER_MIME_TYPE && !parent.trashed && parent.parents?.includes(rootId)) return true;
   }
   return false;
 }

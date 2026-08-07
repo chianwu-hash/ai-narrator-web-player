@@ -1,0 +1,14 @@
+name = "ai-narrator-audio"
+main = "src/index.ts"
+compatibility_date = "2026-08-01"
+workers_dev = true
+
+[vars]
+ALLOWED_ORIGINS = "https://ai-narrator-web-player.vercel.app"
+AUDIO_MAX_RANGE_BYTES = "4194304"
+MAX_SIGNED_URL_TTL_SECONDS = "86400"
+
+# Set these with `wrangler secret put`; never commit their values:
+# AUDIO_SIGNING_SECRET
+# GOOGLE_SERVICE_ACCOUNT_EMAIL
+# GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY

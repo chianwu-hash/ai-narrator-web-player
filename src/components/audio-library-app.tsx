@@ -57,9 +57,7 @@ type ThemeOption = {
   description: string;
   symbol: string;
 };
-
-const NEXT_EPISODE_PREWARM_SECONDS = 30;
-const NEXT_EPISODE_PREWARM_BYTES = 1024 * 1024;
+type AudioSource = { episodeId: string; url: string; expiresAt?: string };
 
 const THEME_OPTIONS: ThemeOption[] = [
   { id: "study-green", label: "書房綠", description: "沉穩、私密，適合預設聽書。", symbol: "●" },
@@ -133,7 +131,8 @@ export function AudioLibraryApp() {
   const audioRef = useRef<HTMLAudioElement>(null);
   const pendingAutoplay = useRef(false);
   const playRequestInFlight = useRef(false);
-  const prewarmedNextEpisodeId = useRef<string | undefined>(undefined);
+  const audioSourceRequestId = useRef(0);
+  const audioRecoveryAttempted = useRef<string | undefined>(undefined);
   const lastSavedSecond = useRef(-1);
   const loadingMessageTimer = useRef<number | undefined>(undefined);
   const lastPlayStatRef = useRef<{ episodeId?: string; trackedAt: number }>({ trackedAt: 0 });
@@ -151,6 +150,7 @@ export function AudioLibraryApp() {
   const [message, setMessage] = useState("");
   const [audioLoading, setAudioLoading] = useState(false);
   const [slowLoading, setSlowLoading] = useState(false);
+  const [audioSource, setAudioSource] = useState<AudioSource>();
   const [commentTarget, setCommentTarget] = useState<CommentTarget>();
   const [commentType, setCommentType] = useState<CommentType>("reflection");
   const [commentBody, setCommentBody] = useState("");
@@ -374,15 +374,59 @@ export function AudioLibraryApp() {
     } catch { /* Unsupported or not yet ready on this browser. */ }
   }
 
+  function deliveryIsFresh(expiresAt?: string): boolean {
+    if (!expiresAt) return true;
+    const expires = new Date(expiresAt).getTime();
+    return Number.isFinite(expires) && expires > Date.now() + 60_000;
+  }
+
+  function loadAudioSource(episode: Episode, autoplay: boolean, forceRefresh = false) {
+    pendingAutoplay.current = autoplay;
+    const embedded = episode.audioDelivery;
+    if (!forceRefresh && embedded && deliveryIsFresh(embedded.expiresAt)) {
+      audioSourceRequestId.current += 1;
+      setAudioSource({ episodeId: episode.id, url: embedded.url, expiresAt: embedded.expiresAt });
+      return;
+    }
+    if (!forceRefresh && !embedded) {
+      audioSourceRequestId.current += 1;
+      setAudioSource({ episodeId: episode.id, url: `/api/audio/${encodeURIComponent(episode.id)}` });
+      return;
+    }
+
+    const requestId = ++audioSourceRequestId.current;
+    setAudioSource(undefined);
+    startAudioLoading();
+    void fetch(`/api/audio-url/${encodeURIComponent(episode.id)}`, { cache: "no-store" })
+      .then(async (response) => {
+        const data = await response.json().catch(() => ({})) as { url?: string; expiresAt?: string; error?: string };
+        if (response.status === 401) router.replace("/login");
+        if (!response.ok || !data.url) throw new Error(data.error ?? "音訊連結無法建立");
+        if (requestId !== audioSourceRequestId.current) return;
+        setAudioSource({ episodeId: episode.id, url: data.url, expiresAt: data.expiresAt });
+      })
+      .catch((error: unknown) => {
+        if (requestId !== audioSourceRequestId.current) return;
+        pendingAutoplay.current = false;
+        stopAudioLoading();
+        showMessage(error instanceof Error ? error.message : "音訊連結無法建立");
+      });
+  }
+
   function resumeFromMediaSession() {
     if (library?.source === "mock") {
       showMessage("示範書庫不含音檔；完成 Drive 設定後，播放與拖曳就會啟用。");
       return;
     }
     if (!activeEpisode && continueTarget) return startEpisode(continueTarget.book, continueTarget.episode, true);
-    const audio = audioRef.current;
-    if (!audio || !activeBook || !activeEpisode) return;
+    if (!activeBook || !activeEpisode) return;
     trackContentPlay(activeBook, activeEpisode);
+    if (!audioSource || audioSource.episodeId !== activeEpisode.id || !deliveryIsFresh(audioSource.expiresAt)) {
+      loadAudioSource(activeEpisode, true);
+      return;
+    }
+    const audio = audioRef.current;
+    if (!audio) return;
     setMediaPlaybackState("playing");
     updateMediaPositionState(audio);
     requestAudioPlay(audio);
@@ -430,25 +474,9 @@ export function AudioLibraryApp() {
     return index >= 0 ? book.episodes[index + 1] : undefined;
   }
 
-  function prewarmNextEpisode(currentPosition: number, currentDuration: number) {
-    if (library?.source !== "drive" || !activeBook || !activeEpisode) return;
-    const durationValue = Number.isFinite(currentDuration) && currentDuration > 0 ? currentDuration : activeEpisode.duration ?? 0;
-    if (!durationValue || durationValue - currentPosition > NEXT_EPISODE_PREWARM_SECONDS) return;
-    const next = nextEpisodeOf(activeBook, activeEpisode);
-    if (!next || prewarmedNextEpisodeId.current === next.id) return;
-    prewarmedNextEpisodeId.current = next.id;
-    void fetch(`/api/audio/${encodeURIComponent(next.id)}`, {
-      headers: { range: `bytes=0-${NEXT_EPISODE_PREWARM_BYTES - 1}` },
-      cache: "force-cache",
-    }).then(async (response) => {
-      if (response.ok || response.status === 206) await response.arrayBuffer();
-    }).catch(() => {
-      if (prewarmedNextEpisodeId.current === next.id) prewarmedNextEpisodeId.current = undefined;
-    });
-  }
-
   function startEpisode(book: Book, episode: Episode, autoplay = true) {
     const sameEpisode = activeEpisodeId === episode.id;
+    const reusableSource = sameEpisode && audioSource?.episodeId === episode.id && deliveryIsFresh(audioSource.expiresAt);
     setActiveBookId(book.id);
     setActiveEpisodeId(episode.id);
     setSelectedBookId(undefined);
@@ -460,9 +488,13 @@ export function AudioLibraryApp() {
       showMessage("目前是示範書庫；連接 Google Drive 後即可播放真實音訊。");
       return;
     }
+    audioRecoveryAttempted.current = undefined;
     if (autoplay) trackContentPlay(book, episode);
-    if (autoplay) startAudioLoading();
-    if (sameEpisode && autoplay) window.setTimeout(() => {
+    if (autoplay) {
+      startAudioLoading();
+      if (!reusableSource) loadAudioSource(episode, true);
+    }
+    if (reusableSource && autoplay) window.setTimeout(() => {
       const audio = audioRef.current;
       if (!audio) return;
       audio.currentTime = resumePosition(localState.progress[episode.id]);
@@ -936,7 +968,7 @@ export function AudioLibraryApp() {
 
       <audio
         ref={audioRef}
-        src={activeEpisode && library?.source === "drive" ? `/api/audio/${activeEpisode.id}` : undefined}
+        src={activeEpisode && audioSource?.episodeId === activeEpisode.id ? audioSource.url : undefined}
         preload="metadata"
         onLoadedMetadata={(event) => { const audio = event.currentTarget; const restored = resumePosition(activeProgress); audio.currentTime = restored; audio.playbackRate = localState.playbackRate; setPosition(restored); setDuration(audio.duration); updateMediaPositionState(audio); if (pendingAutoplay.current) requestAudioPlay(audio); }}
         onCanPlay={(event) => { if (pendingAutoplay.current) requestAudioPlay(event.currentTarget); }}
@@ -945,9 +977,20 @@ export function AudioLibraryApp() {
         onWaiting={() => startAudioLoading()}
         onStalled={(event) => { if (!event.currentTarget.paused) startAudioLoading(); }}
         onPause={(event) => { playRequestInFlight.current = false; setMediaPlaybackState("paused"); updateMediaPositionState(event.currentTarget); setPlaying(false); if (pendingAutoplay.current) return; stopAudioLoading(); commitProgress(); }}
-        onTimeUpdate={(event) => { const audio = event.currentTarget; setPosition(audio.currentTime); setDuration(audio.duration); prewarmNextEpisode(audio.currentTime, audio.duration); const second = Math.floor(audio.currentTime); if (second % 5 === 0 && second !== lastSavedSecond.current) { lastSavedSecond.current = second; commitProgress(); } }}
+        onTimeUpdate={(event) => { const audio = event.currentTarget; setPosition(audio.currentTime); setDuration(audio.duration); const second = Math.floor(audio.currentTime); if (second % 5 === 0 && second !== lastSavedSecond.current) { lastSavedSecond.current = second; commitProgress(); } }}
         onEnded={() => { playRequestInFlight.current = false; setMediaPlaybackState("paused"); stopAudioLoading(); commitProgress(true); setPlaying(false); changeEpisode(1, false); }}
-        onError={() => { playRequestInFlight.current = false; pendingAutoplay.current = false; setMediaPlaybackState("paused"); stopAudioLoading(); showMessage("音訊讀取失敗，請檢查 Drive 權限或稍後再試。"); }}
+        onError={() => {
+          playRequestInFlight.current = false;
+          if (activeEpisode?.audioDelivery && audioRecoveryAttempted.current !== activeEpisode.id) {
+            audioRecoveryAttempted.current = activeEpisode.id;
+            loadAudioSource(activeEpisode, true, true);
+            return;
+          }
+          pendingAutoplay.current = false;
+          setMediaPlaybackState("paused");
+          stopAudioLoading();
+          showMessage("音訊讀取失敗，請檢查 Drive 權限或稍後再試。");
+        }}
       />
       {slowLoading && !message && <div className="toast audio-loading-toast" role="status"><PlayerSpinner />正在載入音訊…</div>}
       {message && <div className="toast" role="status">{message}</div>}
