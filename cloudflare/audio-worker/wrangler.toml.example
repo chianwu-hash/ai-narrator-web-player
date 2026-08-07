@@ -7,8 +7,8 @@ workers_dev = true
 ALLOWED_ORIGINS = "https://ai-narrator-web-player.vercel.app"
 AUDIO_MAX_RANGE_BYTES = "4194304"
 MAX_SIGNED_URL_TTL_SECONDS = "86400"
+AUDIO_TOKEN_BROKER_URL = "https://ai-narrator-web-player.vercel.app/api/worker/drive-token"
 
 # Set these with `wrangler secret put`; never commit their values:
 # AUDIO_SIGNING_SECRET
-# GOOGLE_SERVICE_ACCOUNT_EMAIL
-# GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY
+# AUDIO_TOKEN_BROKER_SECRET

@@ -1,12 +1,10 @@
-const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.readonly";
-const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const DEFAULT_MAX_RANGE_BYTES = 4 * 1024 * 1024;
 const DEFAULT_MAX_URL_TTL_SECONDS = 24 * 60 * 60;
 
 type WorkerEnvironment = {
   AUDIO_SIGNING_SECRET: string;
-  GOOGLE_SERVICE_ACCOUNT_EMAIL: string;
-  GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: string;
+  AUDIO_TOKEN_BROKER_URL: string;
+  AUDIO_TOKEN_BROKER_SECRET: string;
   ALLOWED_ORIGINS?: string;
   AUDIO_MAX_RANGE_BYTES?: string;
   MAX_SIGNED_URL_TTL_SECONDS?: string;
@@ -23,16 +21,6 @@ function base64UrlBytes(value: Uint8Array): string {
   let binary = "";
   for (const byte of value) binary += String.fromCharCode(byte);
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-
-function base64UrlText(value: string): string {
-  return base64UrlBytes(new TextEncoder().encode(value));
-}
-
-function pemBytes(value: string): Uint8Array {
-  const base64 = value.replace(/\\n/g, "\n").replace(/-----[^-]+-----/g, "").replace(/\s/g, "");
-  const binary = atob(base64);
-  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
 }
 
 function safeEqual(left: string, right: string): boolean {
@@ -113,41 +101,39 @@ function originAllowed(origin: string | null, env: WorkerEnvironment): boolean {
   return !origin || allowedOrigins(env).has(origin);
 }
 
+function tokenBrokerUrl(env: WorkerEnvironment): URL {
+  const url = new URL(env.AUDIO_TOKEN_BROKER_URL);
+  const localDevelopment = url.hostname === "localhost" || url.hostname === "127.0.0.1";
+  if (url.protocol !== "https:" && !(localDevelopment && url.protocol === "http:")) {
+    throw new Error("AUDIO_TOKEN_BROKER_URL must use HTTPS");
+  }
+  return url;
+}
+
+export async function requestBrokerAccessToken(
+  env: WorkerEnvironment,
+  fetchImpl = fetch,
+): Promise<{ token: string; expiresAt: number }> {
+  if ((env.AUDIO_TOKEN_BROKER_SECRET?.length ?? 0) < 32) throw new Error("AUDIO_TOKEN_BROKER_SECRET is invalid");
+  const response = await fetchImpl(tokenBrokerUrl(env), {
+    method: "POST",
+    headers: {
+      accept: "application/json",
+      authorization: `Bearer ${env.AUDIO_TOKEN_BROKER_SECRET}`,
+    },
+  });
+  if (!response.ok) throw new Error(`Audio token broker request failed (${response.status})`);
+  const body = await response.json() as { accessToken?: string; expiresAt?: string };
+  const expiresAt = Date.parse(body.expiresAt ?? "");
+  if (!body.accessToken || !Number.isFinite(expiresAt) || expiresAt <= Date.now() + 60_000) {
+    throw new Error("Audio token broker returned an invalid token");
+  }
+  return { token: body.accessToken, expiresAt };
+}
+
 async function googleAccessToken(env: WorkerEnvironment, fetchImpl = fetch, forceRefresh = false): Promise<string> {
   if (!forceRefresh && tokenCache && tokenCache.expiresAt > Date.now() + 60_000) return tokenCache.token;
-  const now = Math.floor(Date.now() / 1000);
-  const header = base64UrlText(JSON.stringify({ alg: "RS256", typ: "JWT" }));
-  const claim = base64UrlText(JSON.stringify({
-    iss: env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-    scope: DRIVE_SCOPE,
-    aud: TOKEN_URL,
-    iat: now,
-    exp: now + 3600,
-  }));
-  const unsigned = `${header}.${claim}`;
-  const privateKeyBytes = pemBytes(env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY);
-  const privateKeyBuffer = privateKeyBytes.buffer.slice(
-    privateKeyBytes.byteOffset,
-    privateKeyBytes.byteOffset + privateKeyBytes.byteLength,
-  ) as ArrayBuffer;
-  const key = await crypto.subtle.importKey(
-    "pkcs8",
-    privateKeyBuffer,
-    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  const signature = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", key, new TextEncoder().encode(unsigned));
-  const assertion = `${unsigned}.${base64UrlBytes(new Uint8Array(signature))}`;
-  const response = await fetchImpl(TOKEN_URL, {
-    method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion }),
-  });
-  if (!response.ok) throw new Error(`Google OAuth token request failed (${response.status})`);
-  const body = await response.json() as { access_token?: string; expires_in?: number };
-  if (!body.access_token) throw new Error("Google OAuth token response did not include an access token");
-  tokenCache = { token: body.access_token, expiresAt: Date.now() + (body.expires_in ?? 3600) * 1000 };
+  tokenCache = await requestBrokerAccessToken(env, fetchImpl);
   return tokenCache.token;
 }
 

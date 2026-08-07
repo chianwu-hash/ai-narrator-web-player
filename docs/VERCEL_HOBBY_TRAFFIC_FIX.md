@@ -38,13 +38,15 @@ Route 明細提供了第二組交叉證據：`/api/sync/state` 的 189 requests 
 
 HTML audio
   └─ Range GET 簽章 URL ──> Cloudflare Worker：驗 HMAC／期限／Origin
-       └─ 使用 Worker secret 取得 Google OAuth token
-            └─ Range GET 私人 Google Drive ──> 206 串流回瀏覽器
+       ├─ 約每個 Worker isolate 每小時 POST 一次 Vercel token broker
+       │    └─ Vercel 使用既有 service account 簽發短效 drive.readonly token
+       └─ Range GET 私人 Google Drive ──> 206 串流回瀏覽器
 ```
 
 安全設計：
 
-- Google service-account email、private key、OAuth access token 只存在 Vercel／Cloudflare server-side secret；不進入書庫 JSON或瀏覽器。
+- Google service-account email 與 private key 仍只存在既有 Vercel secret store；不需、也不應複製到 Cloudflare。Worker 只在記憶體快取約一小時有效的 `drive.readonly` access token，任何憑證都不進入書庫 JSON或瀏覽器。
+- `/api/worker/drive-token` 只接受至少 32 字元的獨立 Bearer secret，回應 `private, no-store`；該 secret 與簽署播放 URL 的 `AUDIO_SIGNING_SECRET` 分離，任一組皆可獨立輪替。
 - Vercel 只為已登入者簽 URL；單檔補發前還會確認 MIME 是 audio，且父資料夾是設定之 Drive 根目錄的直接子資料夾。
 - HMAC 綁定版本、fileId、到期秒數；Worker 以 constant-time 比對，過期或任何竄改皆回 403。
 - URL 預設 6 小時有效，Worker 硬上限 24 小時。播放器在 URL 過期／失效時只補發一次，不把 session cookie送到 Cloudflare。
@@ -73,7 +75,7 @@ HTML audio
 
 以本期實測總量估算，舊架構每 1 GB Fast Data Transfer 會產生約 `7.55 / 6.17 = 1.22 GB` Fast Origin Transfer；若採背景提供的 5.91 GB 數值，則是約 `1.28 GB/GB`。差異來自 Dashboard 取樣時間更新與非音訊小流量。
 
-新架構的音訊本文完全不經 Vercel，因此每播放 1 GB 音訊的 Vercel Fast Origin Transfer 目標是約 0 GB。Vercel 只回傳小型書庫 JSON與簽章字串，通常每集不到 1 kB；即使每 1 GB 音訊補發一次 URL，比例仍低於約 0.000001 GB/GB。Cloudflare 與 Google Drive 承擔音訊位元流。
+新架構的音訊本文完全不經 Vercel，因此每播放 1 GB 音訊的 Vercel Fast Origin Transfer 目標是約 0 GB。Vercel 只回傳小型書庫 JSON、簽章字串，以及每個 Worker isolate 約每小時一次、不到 2 kB 的 token JSON；即使保守假設每 1 GB 音訊各發生一次 URL 與 token 回應，也低於約 0.000003 GB/GB。Cloudflare 與 Google Drive 承擔音訊位元流。
 
 ## 尚未發布的 Vercel WAF 建議
 
@@ -81,7 +83,7 @@ Hobby 每 project 有 1 條免費 rate-limit rule、1,000,000 allowed requests�
 
 建議規則（先觀察／Preview 驗證，未自動發布）：
 
-- 條件：path 以 `/api/audio/` 或 `/api/audio-url/` 開頭，或 path 等於 `/api/sync/state`。
+- 條件：path 以 `/api/audio/` 或 `/api/audio-url/` 開頭，或 path 等於 `/api/sync/state`、`/api/worker/drive-token`。
 - Key：IP。
 - Fixed window：60 秒。
 - Threshold：120 requests。
@@ -92,11 +94,12 @@ Hobby 每 project 有 1 條免費 rate-limit rule、1,000,000 allowed requests�
 ## 設定與驗收順序（不要直接 Production）
 
 1. 在 Cloudflare 建立 Workers Free 專案，複製 `cloudflare/audio-worker/wrangler.toml.example` 為不提交的 `wrangler.toml`。
-2. 以 `wrangler secret put` 設定 `AUDIO_SIGNING_SECRET`、`GOOGLE_SERVICE_ACCOUNT_EMAIL`、`GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`。簽章 secret 至少 32 個隨機字元；Vercel 必須使用同一值。
-3. 設定 `ALLOWED_ORIGINS`，先只放 Preview URL；確認後再加入正式 `https://ai-narrator-web-player.vercel.app`。
-4. 先部署 Worker；這只建立新的非正式音訊端點，不修改 Drive。
-5. 只在 Vercel Preview 設定 `AUDIO_WORKER_URL`、`AUDIO_SIGNING_SECRET`、`AUDIO_URL_TTL_SECONDS=21600`，部署 Preview 驗收。
-6. 在真實 Chrome、Android Chrome、iOS Safari 測播放、背景播放、拖曳、倍速、鎖定畫面／Media Session、跨 URL 到期重取；確認 Worker Analytics 有 206 且 Vercel `/api/audio/[fileId]` 不再出現 Range。
-7. 使用 24 小時 Preview 測試後才由專案擁有者決定是否把同樣三個環境變數加入 Production 並部署。此分支不執行 Production deployment。
+2. 產生兩組不同且至少 32 字元的隨機值：`AUDIO_SIGNING_SECRET` 與 `AUDIO_TOKEN_BROKER_SECRET`。前者在 Vercel 與 Worker 必須相同，後者也必須在兩端相同；皆不可提交。
+3. 以 `wrangler secret put` 在 Worker 設定這兩組 secret，並將 `AUDIO_TOKEN_BROKER_URL` 指向 Vercel origin 的 `/api/worker/drive-token`。不需設定任何 Google email 或 private key。
+4. 設定 `ALLOWED_ORIGINS`，先只放 Preview URL；確認後再加入正式 `https://ai-narrator-web-player.vercel.app`。
+5. 先部署 Worker；這只建立新的非正式音訊端點，不修改 Drive。
+6. 在 Vercel Preview 設定 `AUDIO_WORKER_URL`、`AUDIO_SIGNING_SECRET`、`AUDIO_URL_TTL_SECONDS=21600`、`AUDIO_TOKEN_BROKER_SECRET`。完整 Drive 驗收還需要 token broker 所在環境擁有既有 Google service-account 設定；Vercel 不允許讀回敏感 Production 值，因此在不複製私鑰、也不部署 Production 的限制下，Preview 只能先驗證簽章與拒絕路徑。
+7. 由專案擁有者核准後，在一次受控正式切換中：先把 `AUDIO_TOKEN_BROKER_SECRET` 加入 Vercel Production，部署此分支，再設定 Worker 使用相同 broker secret 與正式 broker URL。這不更改帳單、方案、Drive 分享權限或檔案。
+8. 在真實 Chrome、Android Chrome、iOS Safari 測播放、背景播放、拖曳、倍速、鎖定畫面／Media Session、跨 URL 到期重取；確認 Worker Analytics 有 206 且 Vercel `/api/audio/[fileId]` 不再出現 Range。此分支不執行 Production deployment。
 
 設定值範例在 `config/audio-delivery.env.example`。請勿把任何真實 secret commit、貼到 PR、或設成 Cloudflare plaintext var。

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createSignedAudioUrl } from "../src/lib/audio-url.ts";
-import { handleAudioRequest, normalizeWorkerRange } from "../cloudflare/audio-worker/src/index.ts";
+import { handleAudioRequest, normalizeWorkerRange, requestBrokerAccessToken } from "../cloudflare/audio-worker/src/index.ts";
 
 const secret = "test-audio-signing-secret-with-at-least-32-characters";
 const signingEnvironment = {
@@ -11,12 +11,41 @@ const signingEnvironment = {
 };
 const workerEnvironment = {
   AUDIO_SIGNING_SECRET: secret,
-  GOOGLE_SERVICE_ACCOUNT_EMAIL: "reader@example.iam.gserviceaccount.com",
-  GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: "unused-in-test",
+  AUDIO_TOKEN_BROKER_URL: "https://player.example.com/api/worker/drive-token",
+  AUDIO_TOKEN_BROKER_SECRET: "test-broker-secret-with-at-least-32-characters",
   ALLOWED_ORIGINS: "https://ai-narrator-web-player.vercel.app",
   AUDIO_MAX_RANGE_BYTES: "4194304",
   MAX_SIGNED_URL_TTL_SECONDS: "86400",
 };
+
+test("Worker 以 server-side Bearer secret 向 Vercel broker 取得短效 token", async () => {
+  let method = "";
+  let authorization = "";
+  const result = await requestBrokerAccessToken(workerEnvironment, async (_input, init) => {
+    method = init?.method ?? "";
+    authorization = new Headers(init?.headers).get("authorization") ?? "";
+    return Response.json({ accessToken: "drive-readonly-token", expiresAt: new Date(Date.now() + 600_000).toISOString() });
+  });
+
+  assert.equal(method, "POST");
+  assert.equal(authorization, `Bearer ${workerEnvironment.AUDIO_TOKEN_BROKER_SECRET}`);
+  assert.equal(result.token, "drive-readonly-token");
+  assert.ok(result.expiresAt > Date.now() + 60_000);
+});
+
+test("Worker 拒絕不安全的 broker URL 與即將過期的 token", async () => {
+  await assert.rejects(
+    () => requestBrokerAccessToken({ ...workerEnvironment, AUDIO_TOKEN_BROKER_URL: "http://player.example.com/token" }),
+    /HTTPS/,
+  );
+  await assert.rejects(
+    () => requestBrokerAccessToken(workerEnvironment, async () => Response.json({
+      accessToken: "short-lived",
+      expiresAt: new Date(Date.now() + 30_000).toISOString(),
+    })),
+    /invalid token/,
+  );
+});
 
 test("Range 正規化支援 open-ended、suffix，並拒絕 multi-range", () => {
   assert.equal(normalizeWorkerRange(null), "bytes=0-4194303");
