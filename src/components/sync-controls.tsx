@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { mergePlayerStates } from "@/lib/player-state-merge";
+import { nextSyncUploadDelay } from "@/lib/sync-upload";
 import type { LocalPlayerState } from "@/lib/types";
 
 type SyncControlsProps = {
@@ -37,6 +38,7 @@ export function SyncControls({ ready, localState, onStateMerged, onNotify }: Syn
   const [lastSyncedAt, setLastSyncedAt] = useState("");
   const localStateRef = useRef(localState);
   const lastUploadedJson = useRef("");
+  const lastUploadAt = useRef(0);
   const uploadTimer = useRef<number | undefined>(undefined);
 
   useEffect(() => {
@@ -67,6 +69,7 @@ export function SyncControls({ ready, localState, onStateMerged, onNotify }: Syn
           setStatus("unlinked");
           return;
         }
+        lastUploadAt.current = Date.now();
         applySyncedState(data, "union");
         setStatus("linked");
       })
@@ -83,6 +86,7 @@ export function SyncControls({ ready, localState, onStateMerged, onNotify }: Syn
     if (uploadTimer.current !== undefined) window.clearTimeout(uploadTimer.current);
     setStatus("syncing");
     uploadTimer.current = window.setTimeout(() => {
+      uploadTimer.current = undefined;
       fetch("/api/sync/state", {
         method: "PUT",
         headers: { "content-type": "application/json" },
@@ -95,11 +99,12 @@ export function SyncControls({ ready, localState, onStateMerged, onNotify }: Syn
             return;
           }
           lastUploadedJson.current = JSON.stringify(data.state ?? localState);
+          lastUploadAt.current = Date.now();
           if (data.syncedAt) setLastSyncedAt(data.syncedAt);
           setStatus("linked");
         })
         .catch(() => setStatus("error"));
-    }, 1200);
+    }, nextSyncUploadDelay(lastUploadAt.current));
     return () => {
       if (uploadTimer.current !== undefined) window.clearTimeout(uploadTimer.current);
     };

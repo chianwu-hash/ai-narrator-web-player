@@ -5,8 +5,9 @@ import type { Book } from "./types.ts";
 const DRIVE_API = "https://www.googleapis.com/drive/v3";
 const DRIVE_UPLOAD_API = "https://www.googleapis.com/upload/drive/v3";
 const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive";
+const DRIVE_READONLY_SCOPE = "https://www.googleapis.com/auth/drive.readonly";
 const FOLDER_MIME_TYPE = "application/vnd.google-apps.folder";
-let tokenCache: { token: string; expiresAt: number } | undefined;
+const tokenCache = new Map<string, { token: string; expiresAt: number }>();
 
 export class DriveApiError extends Error {
   status: number;
@@ -39,15 +40,16 @@ export function isDriveConfigured(): boolean {
   return Boolean(credentials() && process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID);
 }
 
-async function accessToken(): Promise<string> {
-  if (tokenCache && tokenCache.expiresAt > Date.now() + 60_000) return tokenCache.token;
+async function accessTokenForScope(scope: string): Promise<{ token: string; expiresAt: number }> {
+  const cached = tokenCache.get(scope);
+  if (cached && cached.expiresAt > Date.now() + 60_000) return cached;
   const serviceAccount = credentials();
   if (!serviceAccount) throw new Error("Google service account is not configured");
   const now = Math.floor(Date.now() / 1000);
   const header = base64Url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
   const claim = base64Url(JSON.stringify({
     iss: serviceAccount.email,
-    scope: DRIVE_SCOPE,
+    scope,
     aud: "https://oauth2.googleapis.com/token",
     iat: now,
     exp: now + 3600,
@@ -64,8 +66,18 @@ async function accessToken(): Promise<string> {
   });
   if (!response.ok) throw new DriveApiError(response.status, driveErrorMessage(response.status));
   const body = await response.json() as { access_token: string; expires_in: number };
-  tokenCache = { token: body.access_token, expiresAt: Date.now() + body.expires_in * 1000 };
-  return body.access_token;
+  const entry = { token: body.access_token, expiresAt: Date.now() + body.expires_in * 1000 };
+  tokenCache.set(scope, entry);
+  return entry;
+}
+
+async function accessToken(): Promise<string> {
+  return (await accessTokenForScope(DRIVE_SCOPE)).token;
+}
+
+export async function driveReadOnlyAccessToken(): Promise<{ accessToken: string; expiresAt: string }> {
+  const entry = await accessTokenForScope(DRIVE_READONLY_SCOPE);
+  return { accessToken: entry.token, expiresAt: new Date(entry.expiresAt).toISOString() };
 }
 
 async function driveFetch(path: string, init?: RequestInit): Promise<Response> {
@@ -111,9 +123,9 @@ async function listChildren(parentId: string): Promise<DriveItem[]> {
   return files;
 }
 
-async function getDriveFile(fileId: string, fields = "id,name,mimeType,parents,modifiedTime,size"): Promise<DriveItem & { parents?: string[] }> {
+async function getDriveFile(fileId: string, fields = "id,name,mimeType,parents,modifiedTime,size"): Promise<DriveItem & { parents?: string[]; trashed?: boolean }> {
   const response = await driveFetch(`/files/${encodeURIComponent(fileId)}?fields=${encodeURIComponent(fields)}&supportsAllDrives=true`);
-  return response.json() as Promise<DriveItem & { parents?: string[] }>;
+  return response.json() as Promise<DriveItem & { parents?: string[]; trashed?: boolean }>;
 }
 
 export async function buildDriveLibrary(): Promise<Book[]> {
@@ -132,6 +144,18 @@ async function fileIsInsideRoot(fileId: string): Promise<boolean> {
     if (parentId === rootId) return true;
     const parent = await getDriveFile(parentId, "id,parents");
     if (parent.parents?.includes(rootId)) return true;
+  }
+  return false;
+}
+
+export async function isAllowedAudioFile(fileId: string): Promise<boolean> {
+  const rootId = process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID;
+  if (!rootId) return false;
+  const file = await getDriveFile(fileId, "id,mimeType,parents,trashed");
+  if (!file.mimeType.startsWith("audio/") || file.trashed) return false;
+  for (const parentId of file.parents ?? []) {
+    const parent = await getDriveFile(parentId, "id,mimeType,parents,trashed");
+    if (parent.mimeType === FOLDER_MIME_TYPE && !parent.trashed && parent.parents?.includes(rootId)) return true;
   }
   return false;
 }

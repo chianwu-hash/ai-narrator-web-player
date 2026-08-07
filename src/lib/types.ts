@@ -7,6 +7,10 @@ export type Episode = {
   mimeType: string;
   size?: number;
   duration?: number;
+  audioDelivery?: {
+    url: string;
+    expiresAt: string;
+  };
 };
 
 export type Book = {
