@@ -289,6 +289,65 @@
 .rate-control { display: flex; align-items: center; gap: 12px; color: rgba(255,255,255,.6); font-size: 11px; }
 .rate-control select { padding: 7px 10px; border: 1px solid rgba(255,255,255,.16); border-radius: 9px; color: white; background: rgba(255,255,255,.09); }
 .rate-control option { color: var(--ink); }
+.app-shell[data-theme="night-ink"] .primary-button {
+  color: #07110f;
+  background: #f2eadb;
+  box-shadow: 0 10px 28px rgba(0,0,0,.22);
+}
+.app-shell[data-theme="night-ink"] .primary-button:hover {
+  background: #fff5e8;
+}
+.app-shell[data-theme="night-ink"] .primary-button span,
+.app-shell[data-theme="night-ink"] .primary-button .player-spinner {
+  color: #ef8f78;
+}
+.app-shell[data-theme="night-ink"] .mini-player {
+  color: #f5fbf8;
+  background: rgba(5,12,10,.94);
+  border-color: rgba(216,232,224,.22);
+  box-shadow: 0 18px 55px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.05);
+}
+.app-shell[data-theme="night-ink"] .mini-main {
+  color: #f8fffb;
+}
+.app-shell[data-theme="night-ink"] .mini-main small {
+  color: rgba(238,247,242,.72);
+}
+.app-shell[data-theme="night-ink"] .play-button,
+.app-shell[data-theme="night-ink"] .full-controls .full-play {
+  color: #07110f;
+  background: #edf7f1;
+  box-shadow: 0 8px 24px rgba(0,0,0,.28);
+}
+.app-shell[data-theme="night-ink"] .play-button:hover,
+.app-shell[data-theme="night-ink"] .full-controls .full-play:hover {
+  background: #ffffff;
+}
+.app-shell[data-theme="night-ink"] .mini-skip,
+.app-shell[data-theme="night-ink"] .full-controls button {
+  color: #edf7f1;
+  text-shadow: 0 1px 8px rgba(0,0,0,.45);
+}
+.app-shell[data-theme="night-ink"] .mini-skip:hover,
+.app-shell[data-theme="night-ink"] .full-controls button:hover {
+  color: #ffffff;
+}
+.app-shell[data-theme="night-ink"] .mini-timeline {
+  background: rgba(238,247,242,.2);
+}
+.app-shell[data-theme="night-ink"] .continue-progress {
+  background: rgba(238,247,242,.26);
+}
+.app-shell[data-theme="night-ink"] .scrubber div,
+.app-shell[data-theme="night-ink"] .rate-control,
+.app-shell[data-theme="night-ink"] .full-copy span {
+  color: rgba(238,247,242,.72);
+}
+.app-shell[data-theme="night-ink"] .rate-control select {
+  color: #f8fffb;
+  background: rgba(238,247,242,.14);
+  border-color: rgba(238,247,242,.28);
+}
 .toast { position: fixed; z-index: 100; left: 50%; bottom: 116px; transform: translateX(-50%); width: max-content; max-width: min(90vw, 520px); padding: 12px 17px; color: white; background: rgba(18,41,36,.95); border-radius: 12px; box-shadow: 0 12px 35px rgba(0,0,0,.2); font-size: 12px; text-align: center; }
 .audio-loading-toast { display: flex; align-items: center; gap: 9px; }
 .audio-loading-toast .player-spinner { width: 14px; height: 14px; }
