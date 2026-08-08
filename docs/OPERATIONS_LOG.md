@@ -79,3 +79,26 @@ Important notes captured:
 Validation:
 
 - The reconciliation was checked against `docs/VERCEL_HOBBY_TRAFFIC_FIX.md` and `cloudflare/audio-worker/README.md`.
+
+## 2026-08-08 Triage local untracked artifacts
+
+Status: completed
+Changed by: Codex
+Related task: AI memory system onboarding consolidation
+
+Summary:
+
+- Classified remaining untracked files after commit `484b0db`.
+- Added `.gitignore` rules for local Codex scratch files, generated work outputs, deliverables, PDF inspection artifacts, Python cache files, and local-only helper / recommendation files.
+- Did not delete, move, or modify the ignored artifacts.
+
+Classification:
+
+- `/.codex_*`, `/__pycache__/`, `/tmp_pdf_inspect/`, `/work/`, and `/deliverables/` are local scratch, generated output, cache, or bulky production artifacts.
+- `/docs/READING_RECOMMENDATIONS.md` is a personal recommendation note and should stay local/private unless explicitly promoted.
+- `/tools/rg_lite.py` is a local fallback helper not referenced by the committed runbooks.
+
+Next-time warnings:
+
+- Do not assume ignored local artifacts are disposable; inspect before deletion.
+- Promote any ignored file into repo history only after confirming its durable project value and checking for secrets or personal content.

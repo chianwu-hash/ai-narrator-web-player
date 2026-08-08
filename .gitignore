@@ -40,3 +40,14 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Local Codex scratch files and generated artifacts
+/.codex_*
+/__pycache__/
+/tmp_pdf_inspect/
+/work/
+/deliverables/
+
+# Local-only triage notes/helpers; keep out of repo history unless explicitly promoted
+/docs/READING_RECOMMENDATIONS.md
+/tools/rg_lite.py
