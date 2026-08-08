@@ -51,7 +51,7 @@ Next-time warnings:
 - Do not reintroduce direct Drive-to-browser public links.
 - Do not change `/api/audio/[fileId]` back into the primary production audio streaming path.
 - If touching audio playback, verify `currentSrc` points to Cloudflare Worker in production and that Range requests return `206`.
-- `README.md` and `docs/ARCHITECTURE.md` may still contain older wording about Vercel audio proxy. Prefer `docs/VERCEL_HOBBY_TRAFFIC_FIX.md` for current audio-delivery truth until those docs are reconciled.
+- `README.md`, `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`, and `docs/VERCEL.md` were reconciled on 2026-08-08 to describe Cloudflare Worker as the production audio bytes path. Prefer `docs/VERCEL_HOBBY_TRAFFIC_FIX.md` and `cloudflare/audio-worker/README.md` for operational details.
 
 ### 2026-08-08 Vercel token broker owns Google private credentials
 
@@ -178,15 +178,28 @@ Next-time warnings:
 - Wish pool allows anonymous wish entries and shows public wish content to logged-in users.
 - Admin pages include links back to the player and navigation for comments, wishes, device activity, and cover management.
 
-## Known stale or conflicting docs
+### Gemini TTS 小說有聲書每日產線
 
-Some older documents may predate the Cloudflare Worker audio migration:
+Status: active
+Scope: 《臺灣漫遊錄》製作、Gemini TTS、Google Drive 上傳、自動排程
+Primary source: `docs/GEMINI_TTS_FICTION_AUDIOBOOK_SOP.md`
 
-- `README.md` currently mentions audio through Vercel Functions.
-- `docs/ARCHITECTURE.md` currently contains older Vercel audio proxy wording.
-- `docs/ROADMAP.md` may contain older notes saying audio still goes through Vercel.
+- Codex automation `automation` 每日臺灣時間 15:05 從最早未完成的 Request 精確接續。
+- 固定使用 `gemini-2.5-flash-preview-tts`、Speaker1=Sulafat、Speaker2=Aoede、雙女聲小說接力與現行 SOP A 版節奏。
+- 每個 API Request 都必須用於正式成品；只有實際收到 HTTP 429／配額錯誤才停止，且不得盲目重試。
+- 每集完成後立即製作、驗證母帶，轉成 `libmp3lame -q:a 4` MP3，透過 `news-vm` 的 rclone 上傳至 `gdrive:aitalktoyou_book/臺灣漫遊錄` 並驗證遠端雜湊。
+- Drive 上傳前只清理同一 EP 編號的舊 MP3，不得刪除其他集數或其他檔案。
+- 全書完成且每集均確認在 Drive 後，才刪除 automation。
 
-Until those are updated, prefer:
+Next-time warnings:
+
+- 已有有效 WAV、metadata、母帶或遠端 MP3 時，禁止重複生成或上傳。
+- TTS 渲染稿可依既定 mapping 將「千鶴子」改成同音字「千賀子」，但原文、字幕與公開逐字稿必須維持正字。
+- 人工試聽仍須檢查機械聲、專名／外來語發音，以及章名停頓與整體節奏。
+
+## Audio migration source hierarchy
+
+If audio-delivery documents appear to conflict, prefer:
 
 - `docs/VERCEL_HOBBY_TRAFFIC_FIX.md`
 - `cloudflare/audio-worker/README.md`
@@ -219,4 +232,3 @@ It is acceptable to document environment variable names and where they are confi
 4. If touching audio delivery, read `docs/VERCEL_HOBBY_TRAFFIC_FIX.md`.
 5. If touching sync or comments/wishes/devices/rankings, read the relevant Supabase docs and migrations.
 6. If touching Telegram `/help`, remember the website does not automatically update the bot running on `news-vm`.
-

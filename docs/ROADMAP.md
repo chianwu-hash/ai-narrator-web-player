@@ -1,6 +1,6 @@
 # 功能待辦紀錄
 
-最後更新：2026-07-17
+最後更新：2026-07-25
 
 本文件記錄播放器已完成、暫不做與後續可排程的功能。它不是法律授權文件，只是開發與管理維護用的工作紀錄。
 
@@ -102,6 +102,36 @@
 - `/help` 登入後說明頁。
 - 總覽顯示新留言、新許願與 24 小時活躍設備數。
 
+### 7. 首頁內容探索與匿名播放排行
+
+狀態：已完成。
+
+已包含：
+
+- 最近新增：依 Drive 書籍資料夾更新時間排序。
+- 最近播放：依目前使用者的本機進度排序。
+- 熱門書籍與熱門單集：只記錄內容層級的匿名累積播放次數。
+- 排行不記錄使用者、設備、IP 或個人播放進度。
+
+參考文件：
+
+- `docs/PLAY_STATS.md`
+- `supabase/migrations/202607180001_content_play_stats.sql`
+
+### 8. 管理後台書封整理
+
+狀態：已完成。
+
+已包含：
+
+- `/admin/covers` 顯示 Drive 書庫及目前封面。
+- 管理者可上傳小於 5 MB 的 JPG、PNG 或 WebP。
+- 有封面時更新原封面；沒有時在該書資料夾新增 `cover.*`。
+- 更新後以 Drive 修改時間與大小更新封面版本，避免瀏覽器沿用舊快取。
+- 只允許根目錄直接子資料夾中的書籍，不會移動或刪除其他 Drive 檔案。
+
+部署時若要使用此功能，service account 對指定書庫根資料夾必須有編輯權限；只使用播放功能則檢視者即可。
+
 ## 暫不做
 
 ### 公開徵集或投票
@@ -124,11 +154,7 @@
 
 ### 1. 確認 Supabase migration 都已執行
 
-尤其是設備監控：
-
-- `supabase/migrations/202607170005_device_activity.sql`
-
-若未執行，前台仍可使用，但 `/admin/devices` 與總覽設備統計會沒有資料。
+依檔名順序確認 `supabase/migrations/` 內六個 migration 都已執行。缺少個別 migration 時，基本書庫與播放仍可使用，但對應的同步、留言、許願、設備監控或熱門排行會停用。
 
 ### 2. 實機觀察設備監控
 
@@ -142,13 +168,13 @@
 
 ### 3. 同步 Telegram 群組 `/help`
 
-狀態：文案已準備，尚未套用到 bot。原因是目前工作區沒有 Telegram bot 原始碼或 `/help` 指令來源。
+狀態：標準文案已準備；是否已套用到正式運行中的 bot，仍需在 bot 的實際部署來源確認。網站程式不會自動修改 Telegram bot。
 
 標準文案已整理於：
 
 - `docs/TELEGRAM_HELP.md`
 
-取得 Telegram bot repo 或實際 `/help` 檔案後，應同步目前網站說明：
+確認 Telegram bot 的實際 `/help` 實作後，應同步目前網站說明：
 
 - 網站網址。
 - 邀請碼用途。
@@ -180,17 +206,8 @@
 
 ### 音訊流量與成本優化
 
-目前音訊仍經 Vercel API proxy。若使用量提高，應觀察 Vercel Functions 與流量成本，再評估短效簽名 URL、私有 CDN 或其他儲存方案。
+正式音訊 bytes 已規劃改由 Cloudflare Worker 透過短效簽章 URL 與 Range request 串流，Vercel 僅保留登入、書庫 API、簽 URL、token broker 與未設定 Worker 環境的回退 route。後續應依 `docs/VERCEL_HOBBY_TRAFFIC_FIX.md` 驗收 Worker Analytics、Vercel `/api/audio/[fileId]` 是否不再承擔 production bytes，以及 iOS Safari／Android Chrome 實機播放。
 
 ### 更完整的管理稽核
 
 若使用者範圍擴大，後台操作可以增加稽核紀錄，例如誰刪了留言、何時更改邀請碼。但這會引入更多管理資料，應確認必要性後再做。
-## 2026-07-18 更新：首頁最近新增與匿名播放排行
-
-已規劃並實作首頁內容探索區塊：
-
-- 最近新增：依 Drive 書籍資料夾更新時間排序。
-- 熱門書籍：只記錄書籍匿名播放總次數。
-- 熱門單集：只記錄單集匿名播放總次數。
-
-隱私原則：排行不記錄使用者、設備、IP 或個人播放進度，只做內容層級統計。設定與資料表說明見 `docs/PLAY_STATS.md`。

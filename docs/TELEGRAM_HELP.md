@@ -1,8 +1,8 @@
 # Telegram 群組 `/help` 文案
 
-最後更新：2026-07-17
+最後核對：2026-07-25
 
-目前本機專案中沒有 Telegram bot 程式碼或 `/help` 指令來源；播放器 repo 也在 `README.md` 註明它獨立於既有 Telegram bot。因此本文件先保存最新版 `/help` 標準文案。取得 bot repo 或實際 `/help` 檔案後，直接以本文件內容同步。
+播放器程式獨立於 Telegram bot，不會自動更新 bot 指令。正式製書程式目前部署在 `news-vm:/home/vboxuser/nblm-audio`，由使用者層級的 `nblm-bot.service` 執行；本文件保存與正式 `/help` 同步的標準文案。
 
 ## 建議 `/help` 文案
 
@@ -43,7 +43,12 @@ AI 說書只能協助快速理解與複習；原書閱讀才能體會文字之�
 
 五、常用指令
 
-• /book：開始製作一本新書
+• /book：開始製作一本新書，先以按鈕選擇一般、小說、史實或教材模式
+• /book -m fiction：小說／故事說書模式，依人物、情節與轉折推進，避免提前劇透
+• /book -m history：歷史敘事模式
+• /book -m textbook：教材導讀模式
+• /book_capture：管理者先以按鈕選擇模式與對象，再從 HyRead 擷取並製書
+• /book_capture -m fiction：直接指定小說／故事模式，跳過模式選單
 • /status：查看目前任務與排隊狀態
 • /book_retry：列出或續跑可斷點回復的書籍任務
 • /help：顯示本說明
@@ -64,11 +69,6 @@ AI 說書只能協助快速理解與複習；原書閱讀才能體會文字之�
 
 ## 套用狀態
 
-尚未直接套用到 Telegram bot，原因：目前工作區沒有 bot 原始碼或部署入口。
+2026-07-25 已將小說模式、新版 `/help` 及 `/book`、`/book_capture` 互動式模式選單套用至正式製書程式；兩個指令仍保留 `-m` 快捷參數。
 
-需要取得其中之一：
-
-- Telegram bot 的 GitHub repo。
-- 本機 bot 專案路徑。
-- 實際儲存 `/help` 內容的檔案。
-- 若 `/help` 由資料庫或環境變數控制，則需要對應後台或部署設定位置。
+往後若修改本文件，需同步更新正式部署來源的 `docs/TELEGRAM_HELP.md`，並在沒有製書子程序執行時重載服務。
