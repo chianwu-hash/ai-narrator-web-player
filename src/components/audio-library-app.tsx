@@ -59,6 +59,9 @@ type ThemeOption = {
 };
 type AudioSource = { episodeId: string; url: string; expiresAt?: string };
 
+const NEXT_EPISODE_PREWARM_SECONDS = 30;
+const NEXT_EPISODE_PREWARM_BYTES = 64 * 1024;
+
 const THEME_OPTIONS: ThemeOption[] = [
   { id: "study-green", label: "書房綠", description: "沉穩、私密，適合預設聽書。", symbol: "●" },
   { id: "paper-warm", label: "暖紙米", description: "像閱讀器的紙感，適合白天瀏覽。", symbol: "◇" },
@@ -133,6 +136,7 @@ export function AudioLibraryApp() {
   const playRequestInFlight = useRef(false);
   const audioSourceRequestId = useRef(0);
   const audioRecoveryAttempted = useRef<string | undefined>(undefined);
+  const prewarmedNextEpisodeId = useRef<string | undefined>(undefined);
   const lastSavedSecond = useRef(-1);
   const loadingMessageTimer = useRef<number | undefined>(undefined);
   const lastPlayStatRef = useRef<{ episodeId?: string; trackedAt: number }>({ trackedAt: 0 });
@@ -447,7 +451,17 @@ export function AudioLibraryApp() {
       pendingAutoplay.current = false;
       setMediaPlaybackState("paused");
       stopAudioLoading();
-      showMessage("瀏覽器暫時無法播放這個音檔。");
+      console.warn("Audio playback did not start", {
+        errorName: error instanceof DOMException ? error.name : "UnknownError",
+        visibilityState: document.visibilityState,
+        readyState: audio.readyState,
+        networkState: audio.networkState,
+        paused: audio.paused,
+        ended: audio.ended,
+      });
+      showMessage(error instanceof DOMException && error.name === "NotAllowedError"
+        ? "iPhone 已暫停背景播放，請點播放鍵繼續。"
+        : "瀏覽器暫時無法播放這個音檔。");
     });
   }
 
@@ -474,9 +488,35 @@ export function AudioLibraryApp() {
     return index >= 0 ? book.episodes[index + 1] : undefined;
   }
 
+  function prewarmNextEpisode(currentPosition: number, currentDuration: number) {
+    if (library?.source !== "drive" || !activeBook || !activeEpisode) return;
+    const durationValue = Number.isFinite(currentDuration) && currentDuration > 0
+      ? currentDuration
+      : activeEpisode.duration ?? 0;
+    if (!durationValue || durationValue - currentPosition > NEXT_EPISODE_PREWARM_SECONDS) return;
+    const next = nextEpisodeOf(activeBook, activeEpisode);
+    const delivery = next?.audioDelivery;
+    if (!next || !delivery || !deliveryIsFresh(delivery.expiresAt) || prewarmedNextEpisodeId.current === next.id) return;
+    prewarmedNextEpisodeId.current = next.id;
+    void fetch(delivery.url, {
+      headers: { range: `bytes=0-${NEXT_EPISODE_PREWARM_BYTES - 1}` },
+      cache: "no-store",
+      credentials: "omit",
+      referrerPolicy: "no-referrer",
+    }).then(async (response) => {
+      if (response.ok || response.status === 206) await response.arrayBuffer();
+      else throw new Error(`Audio prewarm failed (${response.status})`);
+    }).catch(() => {
+      if (prewarmedNextEpisodeId.current === next.id) prewarmedNextEpisodeId.current = undefined;
+    });
+  }
+
   function startEpisode(book: Book, episode: Episode, autoplay = true) {
     const sameEpisode = activeEpisodeId === episode.id;
     const reusableSource = sameEpisode && audioSource?.episodeId === episode.id && deliveryIsFresh(audioSource.expiresAt);
+    const embeddedSource = episode.audioDelivery && deliveryIsFresh(episode.audioDelivery.expiresAt)
+      ? episode.audioDelivery
+      : undefined;
     setActiveBookId(book.id);
     setActiveEpisodeId(episode.id);
     setSelectedBookId(undefined);
@@ -494,6 +534,15 @@ export function AudioLibraryApp() {
       startAudioLoading();
       if (!reusableSource) loadAudioSource(episode, true);
     }
+    if (!reusableSource && embeddedSource && autoplay) {
+      const audio = audioRef.current;
+      if (audio) {
+        audio.src = embeddedSource.url;
+        audio.load();
+        requestAudioPlay(audio);
+      }
+      return;
+    }
     if (reusableSource && autoplay) window.setTimeout(() => {
       const audio = audioRef.current;
       if (!audio) return;
@@ -508,6 +557,23 @@ export function AudioLibraryApp() {
       ? nextEpisodeOf(activeBook, activeEpisode)
       : activeBook.episodes[activeBook.episodes.findIndex((episode) => episode.id === activeEpisode.id) + offset];
     if (next) { if (commitCurrent) commitProgress(); startEpisode(activeBook, next, true); }
+  }
+
+  function handleEpisodeEnded() {
+    playRequestInFlight.current = false;
+    commitProgress(true);
+    if (!activeBook || !activeEpisode || !nextEpisodeOf(activeBook, activeEpisode)) {
+      pendingAutoplay.current = false;
+      setMediaPlaybackState("paused");
+      stopAudioLoading();
+      setPlaying(false);
+      return;
+    }
+    pendingAutoplay.current = true;
+    setMediaPlaybackState("playing");
+    startAudioLoading();
+    setPlaying(false);
+    changeEpisode(1, false);
   }
 
   useEffect(() => {
@@ -530,7 +596,7 @@ export function AudioLibraryApp() {
     setHandler("seekforward", () => { seek(30); updateMediaPositionState(); });
     setHandler("previoustrack", () => changeEpisode(-1));
     setHandler("nexttrack", () => changeEpisode(1));
-    setMediaPlaybackState(playing ? "playing" : "paused");
+    setMediaPlaybackState(playing || pendingAutoplay.current ? "playing" : "paused");
     updateMediaPositionState();
     return () => {
       for (const action of ["play", "pause", "seekbackward", "seekforward", "previoustrack", "nexttrack"] as MediaSessionAction[]) {
@@ -543,7 +609,7 @@ export function AudioLibraryApp() {
 
   useEffect(() => {
     if (!activeEpisode || !("mediaSession" in navigator)) return;
-    setMediaPlaybackState(playing ? "playing" : "paused");
+    setMediaPlaybackState(playing || pendingAutoplay.current ? "playing" : "paused");
   }, [activeEpisode, playing]);
 
   useEffect(() => {
@@ -976,9 +1042,9 @@ export function AudioLibraryApp() {
         onPlaying={(event) => { stopAudioLoading(); setMediaPlaybackState("playing"); updateMediaPositionState(event.currentTarget); setPlaying(true); }}
         onWaiting={() => startAudioLoading()}
         onStalled={(event) => { if (!event.currentTarget.paused) startAudioLoading(); }}
-        onPause={(event) => { playRequestInFlight.current = false; setMediaPlaybackState("paused"); updateMediaPositionState(event.currentTarget); setPlaying(false); if (pendingAutoplay.current) return; stopAudioLoading(); commitProgress(); }}
-        onTimeUpdate={(event) => { const audio = event.currentTarget; setPosition(audio.currentTime); setDuration(audio.duration); const second = Math.floor(audio.currentTime); if (second % 5 === 0 && second !== lastSavedSecond.current) { lastSavedSecond.current = second; commitProgress(); } }}
-        onEnded={() => { playRequestInFlight.current = false; setMediaPlaybackState("paused"); stopAudioLoading(); commitProgress(true); setPlaying(false); changeEpisode(1, false); }}
+        onPause={(event) => { updateMediaPositionState(event.currentTarget); setPlaying(false); if (pendingAutoplay.current) return; playRequestInFlight.current = false; setMediaPlaybackState("paused"); stopAudioLoading(); commitProgress(); }}
+        onTimeUpdate={(event) => { const audio = event.currentTarget; setPosition(audio.currentTime); setDuration(audio.duration); prewarmNextEpisode(audio.currentTime, audio.duration); const second = Math.floor(audio.currentTime); if (second % 5 === 0 && second !== lastSavedSecond.current) { lastSavedSecond.current = second; commitProgress(); } }}
+        onEnded={handleEpisodeEnded}
         onError={() => {
           playRequestInFlight.current = false;
           if (activeEpisode?.audioDelivery && audioRecoveryAttempted.current !== activeEpisode.id) {

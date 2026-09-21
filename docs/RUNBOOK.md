@@ -18,6 +18,7 @@ Before operational changes:
 | Topic | Read first |
 |---|---|
 | Current production audio delivery and Vercel traffic fix | `docs/VERCEL_HOBBY_TRAFFIC_FIX.md`, `cloudflare/audio-worker/README.md` |
+| iPhone / iPad background playback and automatic next episode | `docs/IOS_BACKGROUND_PLAYBACK.md` |
 | Vercel and Google Drive setup | `docs/VERCEL.md` |
 | Architecture overview | `docs/ARCHITECTURE.md`, then reconcile with `docs/PROJECT_MEMORY.md` for current audio delivery |
 | Supabase cross-device sync | `docs/SUPABASE_SYNC.md` |
@@ -84,4 +85,3 @@ After a major change, update:
 - `docs/PROJECT_MEMORY.md` for durable decisions
 - `docs/OPERATIONS_LOG.md` for dated operations
 - specific topic docs if the old wording would mislead future agents
-
