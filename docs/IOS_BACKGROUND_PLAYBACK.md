@@ -36,6 +36,15 @@
 
 音訊仍由 Cloudflare Worker 直接傳輸，沒有恢復 Vercel 音訊代理。這些是程式競態修正，不代表能保證所有 iOS/WebKit 版本的鎖屏續播；仍需以下真機測試。
 
+### 本次部署與驗證紀錄
+
+- 程式提交：`5602c24078d6b065a9f4ce53ac0d6ce4c9c900a0`，已推送 `codex/vercel-hobby-traffic-fix`。
+- 從獨立乾淨 worktree 執行 `vercel deploy --prod --skip-domain --yes`，完成檢查後以 `vercel promote` 切換正式站，沒有混入原工作目錄的其他未提交文件。
+- Deployment：`dpl_As8h3526RqL3yxLGEh3yJZZb6dBv`；正式網域解析出的部署狀態為 `READY`，`meta.gitCommitSha` 與以上程式提交相符。
+- 型別、37 項單元測試、應用程式 ESLint 與 Vercel 正式建置通過；其中 3 項新增測試驗證換集順序、一次載入與沿用同一音訊元素。這些不是 iOS 真機或完整 React 事件競態測試。
+- 正式站 `/login` 回應 `200`，未登入 `/api/library` 回應 `401`。本機設定無法通過正式站驗證，CLI 也不提供 Sensitive 值，因此未完成登入後音訊 Range 與鎖屏續播驗證；不得把部署成功描述成真機播放已確認修復。
+- Windows 的 `vercel.ps1` 會吞掉轉交子命令用的 `--`；使用 `vercel.cmd` 執行 `env run`、`curl` 等需要轉交參數的命令。不要因此改用不安全的字串拼接，也不要輸出密鑰。
+
 ## 驗證方式
 
 正式環境必須用真實 iPhone 測試，桌面瀏覽器無法完整模擬 iOS 背景 media session：
