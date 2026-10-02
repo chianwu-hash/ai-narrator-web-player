@@ -6,6 +6,7 @@ import { type CSSProperties, type FormEvent, useCallback, useEffect, useMemo, us
 import { useRouter } from "next/navigation";
 import { EMPTY_PLAYER_STATE, resumePosition, toggleBookFavorite, toggleEpisodeFavorite, upsertProgress } from "@/lib/progress-model";
 import { loadPlayerState, savePlayerState } from "@/lib/progress-store";
+import { handoffAudio } from "@/lib/audio-handoff";
 import type { Book, Episode, LibraryResponse, LocalPlayerState, ThemeId } from "@/lib/types";
 import { SyncControls } from "./sync-controls";
 import "./audio-library-app.css";
@@ -134,6 +135,8 @@ export function AudioLibraryApp() {
   const audioRef = useRef<HTMLAudioElement>(null);
   const pendingAutoplay = useRef(false);
   const playRequestInFlight = useRef(false);
+  const playbackGeneration = useRef(0);
+  const sourceResumePosition = useRef(0);
   const audioSourceRequestId = useRef(0);
   const audioRecoveryAttempted = useRef<string | undefined>(undefined);
   const prewarmedNextEpisodeId = useRef<string | undefined>(undefined);
@@ -238,16 +241,10 @@ export function AudioLibraryApp() {
     void refreshPlayStats();
   }, [ready]);
 
-  useEffect(() => {
-    if (!ready || library?.source !== "drive" || !activeEpisodeId) return;
-    audioRef.current?.load();
-  }, [activeEpisodeId, library?.source, ready]);
-
   const books = useMemo(() => library?.books ?? [], [library]);
   const selectedBook = books.find((book) => book.id === selectedBookId);
   const activeBook = books.find((book) => book.id === activeBookId);
   const activeEpisode = activeBook?.episodes.find((episode) => episode.id === activeEpisodeId);
-  const activeProgress = activeEpisode ? localState.progress[activeEpisode.id] : undefined;
   const selectedBookComments = selectedBook ? comments.filter((comment) => comment.bookId === selectedBook.id) : [];
   const activeTheme = localState.themeId;
   const mediaPositionSecond = Math.floor(position);
@@ -389,16 +386,18 @@ export function AudioLibraryApp() {
     const embedded = episode.audioDelivery;
     if (!forceRefresh && embedded && deliveryIsFresh(embedded.expiresAt)) {
       audioSourceRequestId.current += 1;
-      setAudioSource({ episodeId: episode.id, url: embedded.url, expiresAt: embedded.expiresAt });
+      applyAudioSource(episode, { episodeId: episode.id, url: embedded.url, expiresAt: embedded.expiresAt }, autoplay);
       return;
     }
     if (!forceRefresh && !embedded) {
       audioSourceRequestId.current += 1;
-      setAudioSource({ episodeId: episode.id, url: `/api/audio/${encodeURIComponent(episode.id)}` });
+      applyAudioSource(episode, { episodeId: episode.id, url: `/api/audio/${encodeURIComponent(episode.id)}` }, autoplay);
       return;
     }
 
     const requestId = ++audioSourceRequestId.current;
+    playbackGeneration.current += 1;
+    playRequestInFlight.current = false;
     setAudioSource(undefined);
     startAudioLoading();
     void fetch(`/api/audio-url/${encodeURIComponent(episode.id)}`, { cache: "no-store" })
@@ -407,7 +406,7 @@ export function AudioLibraryApp() {
         if (response.status === 401) router.replace("/login");
         if (!response.ok || !data.url) throw new Error(data.error ?? "音訊連結無法建立");
         if (requestId !== audioSourceRequestId.current) return;
-        setAudioSource({ episodeId: episode.id, url: data.url, expiresAt: data.expiresAt });
+        applyAudioSource(episode, { episodeId: episode.id, url: data.url, expiresAt: data.expiresAt }, pendingAutoplay.current);
       })
       .catch((error: unknown) => {
         if (requestId !== audioSourceRequestId.current) return;
@@ -415,6 +414,27 @@ export function AudioLibraryApp() {
         stopAudioLoading();
         showMessage(error instanceof Error ? error.message : "音訊連結無法建立");
       });
+  }
+
+  // One owner for src/load/play. React must not reload the element after this handoff.
+  function applyAudioSource(episode: Episode, source: AudioSource, autoplay: boolean) {
+    playbackGeneration.current += 1;
+    playRequestInFlight.current = false;
+    sourceResumePosition.current = resumePosition(localState.progress[episode.id]);
+    setAudioSource(source);
+    const audio = audioRef.current;
+    if (!audio) return;
+    handoffAudio(audio, source.url, localState.playbackRate, autoplay ? () => requestAudioPlay(audio) : undefined);
+  }
+
+  function pauseAudio() {
+    pendingAutoplay.current = false;
+    playbackGeneration.current += 1;
+    playRequestInFlight.current = false;
+    audioRef.current?.pause();
+    setMediaPlaybackState("paused");
+    stopAudioLoading();
+    setPlaying(false);
   }
 
   function resumeFromMediaSession() {
@@ -442,10 +462,13 @@ export function AudioLibraryApp() {
     setMediaPlaybackState("playing");
     updateMediaPositionState(audio);
     playRequestInFlight.current = true;
+    const generation = playbackGeneration.current;
     void audio.play().then(() => {
+      if (generation !== playbackGeneration.current) return;
       playRequestInFlight.current = false;
       pendingAutoplay.current = false;
     }).catch((error: unknown) => {
+      if (generation !== playbackGeneration.current) return;
       playRequestInFlight.current = false;
       if (pendingAutoplay.current && error instanceof DOMException && error.name === "AbortError") return;
       pendingAutoplay.current = false;
@@ -514,9 +537,6 @@ export function AudioLibraryApp() {
   function startEpisode(book: Book, episode: Episode, autoplay = true) {
     const sameEpisode = activeEpisodeId === episode.id;
     const reusableSource = sameEpisode && audioSource?.episodeId === episode.id && deliveryIsFresh(audioSource.expiresAt);
-    const embeddedSource = episode.audioDelivery && deliveryIsFresh(episode.audioDelivery.expiresAt)
-      ? episode.audioDelivery
-      : undefined;
     setActiveBookId(book.id);
     setActiveEpisodeId(episode.id);
     setSelectedBookId(undefined);
@@ -534,21 +554,12 @@ export function AudioLibraryApp() {
       startAudioLoading();
       if (!reusableSource) loadAudioSource(episode, true);
     }
-    if (!reusableSource && embeddedSource && autoplay) {
-      const audio = audioRef.current;
-      if (audio) {
-        audio.src = embeddedSource.url;
-        audio.load();
-        requestAudioPlay(audio);
-      }
-      return;
-    }
-    if (reusableSource && autoplay) window.setTimeout(() => {
+    if (reusableSource && autoplay) {
       const audio = audioRef.current;
       if (!audio) return;
       audio.currentTime = resumePosition(localState.progress[episode.id]);
       requestAudioPlay(audio);
-    }, 0);
+    }
   }
 
   function changeEpisode(offset: number, commitCurrent = true) {
@@ -591,7 +602,7 @@ export function AudioLibraryApp() {
       try { navigator.mediaSession.setActionHandler(action, handler); } catch { /* Browser does not expose this action. */ }
     };
     setHandler("play", () => resumeFromMediaSession());
-    setHandler("pause", () => audioRef.current?.pause());
+    setHandler("pause", pauseAudio);
     setHandler("seekbackward", () => { seek(-15); updateMediaPositionState(); });
     setHandler("seekforward", () => { seek(30); updateMediaPositionState(); });
     setHandler("previoustrack", () => changeEpisode(-1));
@@ -626,7 +637,7 @@ export function AudioLibraryApp() {
     if (audio.paused) {
       if (activeBook && activeEpisode) trackContentPlay(activeBook, activeEpisode);
       resumeFromMediaSession();
-    } else audio.pause();
+    } else pauseAudio();
   }
 
   function seek(delta: number) {
@@ -1034,15 +1045,14 @@ export function AudioLibraryApp() {
 
       <audio
         ref={audioRef}
-        src={activeEpisode && audioSource?.episodeId === activeEpisode.id ? audioSource.url : undefined}
         preload="metadata"
-        onLoadedMetadata={(event) => { const audio = event.currentTarget; const restored = resumePosition(activeProgress); audio.currentTime = restored; audio.playbackRate = localState.playbackRate; setPosition(restored); setDuration(audio.duration); updateMediaPositionState(audio); if (pendingAutoplay.current) requestAudioPlay(audio); }}
+        onLoadedMetadata={(event) => { const audio = event.currentTarget; const restored = sourceResumePosition.current; if (restored > 0) audio.currentTime = restored; audio.playbackRate = localState.playbackRate; setPosition(restored); setDuration(audio.duration); updateMediaPositionState(audio); if (pendingAutoplay.current) requestAudioPlay(audio); }}
         onCanPlay={(event) => { if (pendingAutoplay.current) requestAudioPlay(event.currentTarget); }}
-        onPlay={(event) => { playRequestInFlight.current = false; pendingAutoplay.current = false; setMediaPlaybackState("playing"); updateMediaPositionState(event.currentTarget); setPlaying(true); }}
-        onPlaying={(event) => { stopAudioLoading(); setMediaPlaybackState("playing"); updateMediaPositionState(event.currentTarget); setPlaying(true); }}
+        onPlay={() => setMediaPlaybackState("playing")}
+        onPlaying={(event) => { playRequestInFlight.current = false; pendingAutoplay.current = false; stopAudioLoading(); setMediaPlaybackState("playing"); updateMediaPositionState(event.currentTarget); setPlaying(true); }}
         onWaiting={() => startAudioLoading()}
         onStalled={(event) => { if (!event.currentTarget.paused) startAudioLoading(); }}
-        onPause={(event) => { updateMediaPositionState(event.currentTarget); setPlaying(false); if (pendingAutoplay.current) return; playRequestInFlight.current = false; setMediaPlaybackState("paused"); stopAudioLoading(); commitProgress(); }}
+        onPause={(event) => { if (event.currentTarget.ended || pendingAutoplay.current) return; updateMediaPositionState(event.currentTarget); setPlaying(false); playRequestInFlight.current = false; setMediaPlaybackState("paused"); stopAudioLoading(); commitProgress(); }}
         onTimeUpdate={(event) => { const audio = event.currentTarget; setPosition(audio.currentTime); setDuration(audio.duration); prewarmNextEpisode(audio.currentTime, audio.duration); const second = Math.floor(audio.currentTime); if (second % 5 === 0 && second !== lastSavedSecond.current) { lastSavedSecond.current = second; commitProgress(); } }}
         onEnded={handleEpisodeEnded}
         onError={() => {
