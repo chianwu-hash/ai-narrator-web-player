@@ -27,6 +27,13 @@ This file records durable project knowledge for AI assistants. It is not a full 
 
 ## Critical active decisions
 
+### 2026-10-04 工作室更名重排錯位修復
+
+- 《如何造就一個好老師》七集生成後三列被改成 EP01。新版 audio_spark 圖示文字污染舊標題解析；更名後重排，重試在無法定位時沿用舊 index，且底層只看整個 panel 出現名稱，造成錯改其他音訊。來源數／提示詞識別碼仍完整，不是內容檔覆寫。
+- 修復：結構化 artifact-title／details，保留外部狀態標記；捕捉 artifact-labels-UUID，提示詞盤點／更名／下載以此定位。只驗證同一 artifact 的精確標題，禁止失去原列後舊位置重試。正式程式 commit／push 4904742、da0f904、e06e982，保留原執行權限；197 項完整隔離測試及狀態補強後 6 項相關重測通過。详見 `docs/GEMINI_NOTEBOOK_UI_20261004.md`。
+- 暫停原子程序後，按提示詞 EP＋UUID 修復七集名稱；reload 後逐集核對身分、標題、來源數及原時長通過。未重生／刪除音訊；恢復既有 FIFO job，新程序確認七集可播放且不重送生成，EP01 正常下載／解碼及時長驗證通過。全書交付以後續正式狀態為準。
+- 備份於 news-vm 的 nblm-account-backups/artifact_identity_20261004_223317、artifact_recovery_20261004_223914。bot active/running、NRestarts=0；遠端及本機其他 dirty 保留。固定名稱不等同固定內容身分，列表 index 只能代表當下位置。
+
 ### 2026-10-04 新增筆記本按鈕改名修復
 
 - 使用者正式製書任務卡在建立筆記本；18800／18801 首頁 DOM 都正常載入且 aria-label 為「新增筆記本」，舊程式只接受「建立新的筆記本／建立筆記本」，故先前錯誤訊息判成暫時連線逾時不準確。

@@ -1,5 +1,14 @@
 # Operations Log
 
+## 2026-10-04 Gemini Notebook 工作室探查與錯誤更名修復
+
+- 使用者截圖回報三個不同時長語音都成 EP01。對當時 resume-job 子程序 SIGSTOP，避免繼續改名／交付。只讀逐列提示詞確認七個 EP 唯一且來源數均 3，UUID／時長各自保留。
+- 根因：新 audio_spark 圖示與讀取狀態混入標題，舊解析造成已正確更名仍判失敗；列表改名重排，fallback 舊 index 改錯列；panel 全域名稱存在又不代表原列成功。改以結構化標題、UUID、原列精確提交驗證與失去身分即停止；提示詞與下載傳遞 UUID，非標題欄狀態徽章仍保留。
+- 正式碼 4904742、da0f904、e06e982 均 push。197 項隔離測試通過，狀態補強後 6 項相關重測通過；含 stale index、改名重排、另列同名不算成功、提交失敗、生成中／排程／失敗。未對正式刪除做破壞性驗證。
+- 按提示詞 EP＋UUID 修復原名稱，reload 後七集逐一驗證名稱、身分、3來源、時長及可播放。第一轮 reload 的空清單被拒絕，等完整 hydration 後再核對，沒有假成功。
+- book state 存乾淨 inventory／organized，停止父 bot、終止 paused 舊 child，再由持久 FIFO 恢復同一 job；略過企劃／來源上傳，保留七集與配樂，不重生音樂或語音。正式 log 再确认七集唯一可播放，EP01 已下載且解碼／原時長通過；其餘正常下載與交付狀態另行觀察。
+- 備份 artifact_identity_20261004_223317、artifact_recovery_20261004_223914；bot active/running、NRestarts=0。操作細節與後續規則在 docs/GEMINI_NOTEBOOK_UI_20261004.md；其他 dirty 修改未納入提交。
+
 ## 2026-10-04 新增筆記本 UI 相容修正
 
 - 確認兩個正式 Chrome 首頁都有可見且可用的「新增筆記本」，button 沒有 href。書籍與主題舊 selector 都漏掉新名稱；不是已證明的網路逾時。官方流程來源：https://support.google.com/gemininotebook/answer/16206563?hl=zh-Hant 。

@@ -89,3 +89,7 @@ After a major change, update:
 ## ElevenMusic 書籍配樂整合（2026-10-04）
 
 音樂供應商、18801 登入、恢復與隔離測試請讀 `docs/ELEVENMUSIC_INTEGRATION.md`；主題版固定風格不變。
+
+## Gemini Notebook 工作室新版 UI（2026-10-04）
+
+更名、列表重排、語音身分辨識與下載請先讀 `docs/GEMINI_NOTEBOOK_UI_20261004.md`；固定 artifact id 不可換成旧 index，提示詞才是分集識別依據。
