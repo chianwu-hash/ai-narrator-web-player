@@ -1,5 +1,12 @@
 # Operations Log
 
+## 2026-10-04 新增筆記本 UI 相容修正
+
+- 確認兩個正式 Chrome 首頁都有可見且可用的「新增筆記本」，button 沒有 href。書籍與主題舊 selector 都漏掉新名稱；不是已證明的網路逾時。官方流程來源：https://support.google.com/gemininotebook/answer/16206563?hl=zh-Hant 。
+- 共用完整名稱比對、舊中英文相容、排除非建立筆記本／隱藏／停用與歧義。正式程式替換並 commit／push `4793a95a6e93102f02d770dbbe2a42e28b8b4ff7`；191 項隔離單元測試通過，新增 Chrome headless 离線 DOM 回歸含 9 子案例；18800／18801 實際新按鈕唯讀匹配成功，不點擊。
+- 首輪測試發現 AST 抽取的帳號測試不含新 import；未部署即停止。將主題帳號檢查前移至控制項等待前，強化不符帳號立即停止，完整重測通過。所有隔離測試 ELEVENMUSIC_DISABLE_BROWSER=1，未消耗音樂／語音額度。
+- 只提交本次 topic selector 差異，nblm_cdp.py 既有域名修改及 nblm_monitor.py dirty 保留；未重啟 bot、未按 Telegram 回復、未發訊或新建測試筆記本。下次 worker 會讀新程式。完整書籍流程仍待原任務恢復驗證。
+
 ## 2026-10-04 ElevenMusic 書籍配樂正式切換
 
 - 使用者確認主題版採固定音樂風格，因此不修改主題版分類曲庫；書籍版才替換 Suno。詳細決策、恢復、額度及測試事故見 `docs/ELEVENMUSIC_INTEGRATION.md`。

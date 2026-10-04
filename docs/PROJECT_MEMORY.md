@@ -27,6 +27,13 @@ This file records durable project knowledge for AI assistants. It is not a full 
 
 ## Critical active decisions
 
+### 2026-10-04 新增筆記本按鈕改名修復
+
+- 使用者正式製書任務卡在建立筆記本；18800／18801 首頁 DOM 都正常載入且 aria-label 為「新增筆記本」，舊程式只接受「建立新的筆記本／建立筆記本」，故先前錯誤訊息判成暫時連線逾時不準確。
+- 兩服務改共用 notebook_controls.py，支援新版及舊版完整中英文名稱、排除隱藏／停用／多匹配與 Create report 等非筆記本動作；主題帳號在等待控制項前及點擊前檢查。正式製書 repo commit／push `4793a95a6e93102f02d770dbbe2a42e28b8b4ff7`，191 項隔離測試含 9 個离線 DOM 子案例通過，兩個正式頁面唯讀匹配通過。
+- 官方提供固定首頁 https://notebook.google.com/，並指示從首頁按建立；沒有找到官方固定新增路由。實際新增是 BUTTON、無 href；建立後 notebook/<uuid> 才是該筆記本地址。不猜測內部 /creating 等路由，保持 authuser 綁定。
+- 沒有為驗證建立 Notebook／新增來源／生成音訊／發訊，亦未替使用者重送任務；使用者可在原 Telegram 失敗任務按斷點回復。worker 下次執行載入新程式，bot 未重啟；原遠端 dirty 與本機其他修改保留。
+
 ### 2026-10-04 ElevenMusic 書籍版已接入產線
 
 - 使用者接受音樂品質並授權修改；主題版 nblm-audio 保持固定分類音樂，僅書籍版改以 ElevenMusic v2.5／單首／60 秒／Instrumental 替代 Suno。詳見 `docs/ELEVENMUSIC_INTEGRATION.md`。
