@@ -951,6 +951,7 @@ export function AudioLibraryApp() {
             </div>
           </section>
         )}
+        <p className="section-kicker">部分書籍配樂：Made with ElevenMusic</p>
       </main>
 
       <nav className="mobile-nav" aria-label="行動版主要導覽">
