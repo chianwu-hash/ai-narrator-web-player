@@ -1,5 +1,14 @@
 # Operations Log
 
+## 2026-10-04 ElevenMusic 書籍配樂正式切換
+
+- 使用者確認主題版採固定音樂風格，因此不修改主題版分類曲庫；書籍版才替換 Suno。詳細決策、恢復、額度及測試事故見 `docs/ELEVENMUSIC_INTEGRATION.md`。
+- news-vm 正式製書 commit／push `41f52f9d63a3dce7c49542b47369ae4c9ffcc238`，190 項隔離測試通過，bot 重啟 active/running、NRestarts=0。備份 `/home/vboxuser/nblm-account-backups/elevenmusic_20261004_162150`，原 nblm_cdp.py／nblm_monitor.py dirty 保留。
+- 書籍配樂 v2.5／單首／60 秒／Instrumental，提交前保存意圖、精確曲目群組尋回、不自動重送；不足／忙碌／失敗退回曲庫。下載驗證後入庫，署名傳遞到信用檔、Drive、原交付訊息及混音 metadata。
+- 先前一轮隔離測試因硬編碼 production import 路徑誤用正式舊測試，造成兩首 Test Book 音樂生成，該輪部署中止；現修正相對 import、完整 discovery 與 ELEVENMUSIC_DISABLE_BROWSER=1 guard。兩曲未發布／交付、未刪除；最新唯讀預檢生成 22、Download 3 left，不推論固定額度。
+- 播放器可見署名已提交／推送 `f019061`；本機 typecheck、37 項測試、lint 與 build 通過（lint 保留既有工具檔一項 warning）。從該提交的乾淨 archive 部署，未帶入本機其他 dirty／helper／音樂檔。
+- Vercel deployment `https://ai-narrator-web-player-aruen46ly-chianwu-4755s-projects.vercel.app` 建置成功並 alias 正式網址。正式 login HTTP 200、未登入 library HTTP 401。首次正常整本書端到端流程仍待實務驗證，未額外生成測試曲或發測試訊息。
+
 This file records significant project changes for future AI handoff. It is not a full chat transcript.
 
 ## 2026-08-08 Add repo-local AI memory entrypoint

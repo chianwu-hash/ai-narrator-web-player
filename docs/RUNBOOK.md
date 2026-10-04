@@ -85,3 +85,7 @@ After a major change, update:
 - `docs/PROJECT_MEMORY.md` for durable decisions
 - `docs/OPERATIONS_LOG.md` for dated operations
 - specific topic docs if the old wording would mislead future agents
+
+## ElevenMusic 書籍配樂整合（2026-10-04）
+
+音樂供應商、18801 登入、恢復與隔離測試請讀 `docs/ELEVENMUSIC_INTEGRATION.md`；主題版固定風格不變。

@@ -27,6 +27,13 @@ This file records durable project knowledge for AI assistants. It is not a full 
 
 ## Critical active decisions
 
+### 2026-10-04 ElevenMusic 書籍版已接入產線
+
+- 使用者接受音樂品質並授權修改；主題版 nblm-audio 保持固定分類音樂，僅書籍版改以 ElevenMusic v2.5／單首／60 秒／Instrumental 替代 Suno。詳見 `docs/ELEVENMUSIC_INTEGRATION.md`。
+- 正式製書 commit／push `41f52f9d63a3dce7c49542b47369ae4c9ffcc238`，bot 重啟 active，190 項隔離測試通過；18801 多曲目精確辨識與表單預檢通過，未新送出。單首先保存提交意圖、保留恢復斷點，不明狀態不重送；不足或失敗改曲庫，保留免費作品署名。
+- 播放器可見署名與整合記錄已 commit／push `f019061`；正式播放器部署狀態另見最新操作紀錄。整本書自動流程仍待下一正常任務驗證。
+- 舊測試的正式硬編碼 import 路徑造成兩首非預期 Test Book 音樂生成，該輪部署已中止並修正；隔離測試一律 ELEVENMUSIC_DISABLE_BROWSER=1。雲端兩曲未發布／交付，未刪除。詳細經過與最新可見額度在整合文件。
+
 ### 2026-08-08 Audio bytes must not stream through Vercel Functions
 
 Status: active

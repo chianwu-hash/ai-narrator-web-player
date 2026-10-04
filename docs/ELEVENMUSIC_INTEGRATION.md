@@ -29,3 +29,7 @@
 - 尚待下一本正常書籍驗證完整自動生成、下載、後製及交付；不可把樣本與唯讀預檢等同全流程驗收。
 
 正式實作與詳細操作見製書 repo `docs/ELEVENMUSIC.md`。
+
+## 播放器正式部署
+
+播放器署名提交 `f019061` 已推送，2026-10-04 由乾淨提交 archive 部署至 Vercel，建置成功並 alias 正式網址。部署網址：`https://ai-narrator-web-player-aruen46ly-chianwu-4755s-projects.vercel.app`。正式 login HTTP 200、未登入 library HTTP 401；本機 typecheck、37 項測試、lint 及 build 通過，lint 保留工具暫存檔既有一項 warning。
