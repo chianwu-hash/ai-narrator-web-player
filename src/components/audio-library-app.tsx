@@ -218,6 +218,7 @@ export function AudioLibraryApp() {
     let stopped = false;
     let lastPingAt = 0;
     function pingActivity() {
+      if (document.visibilityState === "hidden" && audioRef.current?.paused !== false) return;
       const now = Date.now();
       if (stopped || now - lastPingAt < 4 * 60 * 1000) return;
       lastPingAt = now;

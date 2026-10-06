@@ -17,6 +17,8 @@ This file records durable project knowledge for AI assistants. It is not a full 
 
 ## Current architecture summary
 
+- 2026-10-06 使用者授權修正夜間同步 bug，已套用本機原碼、未部署：SyncControls ack 使用送出 payload 快照＋single-flight；同位置進度不刷新 lastPlayedAt；hidden idle 不發 activity，背景真播放保留。修正後原碼 React mock 15 情境／14 組通過：paused/ended 每小時 60 PUT→1，慢回應最高 19 在途→1，最後待傳進度保留，背景播放仍 30 PUT/30min；40 node tests、typecheck、lint 通過。正式仍為先前 deployment；server full-state upsert／last_seen_at 無條件寫尚未改，IO 因果未定。詳見 Disk IO 報告最新「已授權並套用本機」節；報告內未套用候選描述為歷史。
+
 - Browser users log in with the shared player invitation code.
 - Listener sessions and admin sessions are separate and use different cookies.
 - Google Drive is the private source of books, episodes, and cover images.

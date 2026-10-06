@@ -8,6 +8,8 @@ https://ai-narrator-web-player.vercel.app/admin/devices
 
 ## 目的
 
+2026-10-06 本機修正（未部署）：hidden 且音訊實際 paused 的頁面跳過 activity heartbeat；hidden 真播放仍送，可見頁面五分鐘 timer 與原四分鐘事件去重門檻保持。每 tab 仍獨立，server 更新頻率尚未改；詳細隔離驗證見 `SUPABASE_DISKIO_AUDIT_20261006.md` 最新節。管理者不能把背景頁面的 activity 等同真人一直操作。
+
 讓管理者知道目前大概有幾台設備在使用播放器，用於邀請碼管理與風險控管。
 
 ## 隱私原則

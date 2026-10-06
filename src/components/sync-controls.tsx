@@ -39,6 +39,7 @@ export function SyncControls({ ready, localState, onStateMerged, onNotify }: Syn
   const localStateRef = useRef(localState);
   const lastUploadedJson = useRef("");
   const lastUploadAt = useRef(0);
+  const uploadInFlight = useRef(false);
   const uploadTimer = useRef<number | undefined>(undefined);
 
   useEffect(() => {
@@ -81,12 +82,14 @@ export function SyncControls({ ready, localState, onStateMerged, onNotify }: Syn
 
   useEffect(() => {
     if (!ready || (status !== "linked" && status !== "syncing")) return;
+    if (uploadInFlight.current) return;
     const payload = JSON.stringify(localState);
     if (payload === lastUploadedJson.current) return;
     if (uploadTimer.current !== undefined) window.clearTimeout(uploadTimer.current);
     setStatus("syncing");
     uploadTimer.current = window.setTimeout(() => {
       uploadTimer.current = undefined;
+      uploadInFlight.current = true;
       fetch("/api/sync/state", {
         method: "PUT",
         headers: { "content-type": "application/json" },
@@ -95,15 +98,22 @@ export function SyncControls({ ready, localState, onStateMerged, onNotify }: Syn
         .then(readJson)
         .then((data) => {
           if (data.enabled === false) {
+            uploadInFlight.current = false;
             setStatus("disabled");
             return;
           }
-          lastUploadedJson.current = JSON.stringify(data.state ?? localState);
+          // Acknowledge this request, not the server's reordered or merged state.
+          // Changes made while it was in flight must still be uploaded next.
+          lastUploadedJson.current = payload;
+          uploadInFlight.current = false;
           lastUploadAt.current = Date.now();
           if (data.syncedAt) setLastSyncedAt(data.syncedAt);
           setStatus("linked");
         })
-        .catch(() => setStatus("error"));
+        .catch(() => {
+          uploadInFlight.current = false;
+          setStatus("error");
+        });
     }, nextSyncUploadDelay(lastUploadAt.current));
     return () => {
       if (uploadTimer.current !== undefined) window.clearTimeout(uploadTimer.current);

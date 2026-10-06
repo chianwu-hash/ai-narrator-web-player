@@ -1,5 +1,14 @@
 # Operations Log
 
+## 2026-10-06 夜間背景同步 bug 本機修正（未部署）
+
+- 追加授權 Claude review 後 commit push；chat-mode CLI 2.1.288 OAuth 兩輪完成（session20261006-sync-bug-review），Git baseline無變動，結論無阻擋缺陷。保留既有pairing競態、CI React coverage及真browser/DB/CAS缺口，未擴大修正。只提交本次變更；正式promote不在授權範圍。
+
+- 使用者授權「既然找到 bug 就先修正這個錯誤」。套用送出快照 ack、單筆 in-flight、相同進度 no-op、hidden paused activity gate；保留 60 秒節流、背景真播放同步及 heartbeat。
+- 真正修正後 source 的 React 隔離 15 情境／14 組通過，paused/ended 60→1 PUT/h，兩 component120→2，慢90秒最高19→1在途，排空最後 position300保留；40 tests、typecheck、lint通过（既有work vendor一個warning）。詳見 Disk IO 報告最新節及 results-fixed-source.json。
+- production build 通過；真 timer 125.309秒複驗 paused 只一筆 PUT（60.086秒），未再重送，結果 results-wall-clock-fixed.json。
+- 保留其他 dirty；本機修正驗證階段未部署、推送、停服務、改正式 DB／環境或升級；後續 commit push 已追加授權，production promote 未授權。正式仍有舊版 bug；根因診斷與正式 IO 減量效果未定。已授權本機修正取代報告內「僅候選」狀態。
+
 ## 2026-10-04 Gemini Notebook 工作室探查與錯誤更名修復
 
 - 使用者截圖回報三個不同時長語音都成 EP01。對當時 resume-job 子程序 SIGSTOP，避免繼續改名／交付。只讀逐列提示詞確認七個 EP 唯一且來源數均 3，UUID／時長各自保留。

@@ -13,6 +13,13 @@ export function upsertProgress(
   input: Omit<EpisodeProgress, "completed" | "lastPlayedAt"> & Partial<Pick<EpisodeProgress, "completed" | "lastPlayedAt">>,
 ): LocalPlayerState {
   const completed = input.completed ?? isEpisodeCompleted(input.position, input.duration);
+  const previous = state.progress[input.episodeId];
+  if (
+    !input.lastPlayedAt && previous &&
+    previous.bookId === input.bookId && previous.position === input.position &&
+    previous.duration === input.duration && previous.completed === completed &&
+    state.lastEpisodeId === input.episodeId
+  ) return state;
   const progress: EpisodeProgress = {
     ...input,
     completed,

@@ -4,6 +4,8 @@
 
 ## 本次實作摘要
 
+2026-10-06 本機修正（未部署）：上傳成功 ack 採該次送出的 payload 快照，避免回傳 JSONB key 順序／額外遠端進度導致無變更循環；PUT 以 in-flight ref 序列化，成功後補傳期間的最新變更。原 60 秒節流保留；相同實質進度不刷新 lastPlayedAt，明確外部時間戳／倒帶／完成／切集仍保存。正式部署仍為舊版；證據、回歸及剩餘 server／跨設備限制見 `SUPABASE_DISKIO_AUDIT_20261006.md` 最新節。
+
 - GitHub repo：`chianwu-hash/ai-narrator-web-player`
 - Vercel project：`ai-narrator-web-player`
 - 正式網址：`https://ai-narrator-web-player.vercel.app`
