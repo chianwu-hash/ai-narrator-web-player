@@ -29,6 +29,7 @@ Before operational changes:
 | Telegram `/help` copy | `docs/TELEGRAM_HELP.md` |
 | Roadmap and open tasks | `docs/ROADMAP.md` |
 | Codex VM / remote workflow | `docs/codex-vm-runbook.md` |
+| news-vm Codex CLI 原書情節閱讀／回查、語音提示編排及重生快取 | `docs/EPISODE_FACTS.md`、`tools/vm_episode_facts/README.md` |
 | Gemini TTS fiction audiobook SOP | `docs/GEMINI_TTS_FICTION_AUDIOBOOK_SOP.md` |
 | Qwen3 voice clone MVP | `docs/QWEN3_TTS_VOICE_CLONE_MVP.md` |
 

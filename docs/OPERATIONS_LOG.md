@@ -136,3 +136,25 @@ Next-time warnings:
 
 - Do not assume ignored local artifacts are disposable; inspect before deletion.
 - Promote any ignored file into repo history only after confirming its durable project value and checking for secrets or personal content.
+
+## 2026-10-09 QBQ VM Codex extraction benchmark
+
+Status: two-episode benchmark complete; production integration pending
+Changed by: Codex
+
+- Used news-vm isolated CLI0.161.0, existing ChatGPT login, gpt-6.1-sol/high, two independent original-image reading sessions per episode. EP03:81,313 tokens/466.1s; EP08:111,993 tokens/532.4s. No separately billed API calls.
+- Visually checked core events against all17 source images after model recheck. Recheck corrected number recognition and inner thoughts incorrectly treated as spoken replies; this is not a general correctness guarantee or audio acceptance.
+- Four stage cache replays made0 additional model calls; source/prompt/answer hashes and identity-change invalidation checked. Sanitized quota receipts show weekly24%→25%, shared and rounded.
+- Full nine-episode estimate73–101萬tokens,70–80min reading only. No same-episode prompt A/B savings claim. Full records exceed existing2600-character card limit; integration must preserve full evidence and compile a separate story-preserving voice prompt, never truncate events.
+- Evidence: `work/qbq_codex_benchmark_20261008/ASSESSMENT.md`; VM `/home/vboxuser/books/_reading_tests/QBQ_Codex_Benchmark_20261008`. No production code deployment, audio generation, Drive replacement, git commit or cleanup of unrelated work.
+
+## 2026-10-09 Deploy VM Codex source reading and compact voice references
+
+Status: deployed at07:52; bot active and book queue empty
+Changed by: Codex
+
+- User requested continuation after assessment. Changed only named facts/CDP modules, related tests and facts runbook onnews-vm, preserving unrelated dirty work. Backed up originals under `/home/vboxuser/nblm-account-backups/codex_episode_facts_20261009_075238` before replacement; baseline hashes checked before and after stopping idle bot.
+- Production facts entry now uses pinned standaloneCLI0.161.0/gpt-6.1-sol/high with VMChatGPT login, two independent complete source reads, no API-key/Notebook/model fallback. Recheck returns full JSON plus bounded voice_notes without third call. Style-only changes recompose voice prompt without rereading source; source/model/spec changes invalidate cache. Failed/uncertain CLI attempts require reconciliation before resubmission.
+- Fresh isolated EP03 live test82537tokens/303.8s,4cases,887voice characters,2433full prompt characters. Recheck fixed dimensions, unsupported coughing and omissions. Agent visually compared core events and notes with six original images; not audio or word-for-word acceptance. Exact and style-only cache replays0newcalls.
+- Added exact DOM prompt equality before submission, tested immediate and delayed truncation without real Notebook submission.222pre-deploy and222post-deploy tests passed. Post-deploy imported installed module and reused live trial cache with0calls; installed tests completed in37.557s, stored inpost_deploy_receipt.json.
+-52existing book prompt files unchanged, no new audio, Drive replacement, bulk regeneration, Telegram messaging, commit/push or unrelated cleanup. Local source mirror `tools/vm_episode_facts/`, receipts `work/codex_facts_integration_20261009/`.

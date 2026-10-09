@@ -255,3 +255,20 @@ It is acceptable to document environment variable names and where they are confi
 4. If touching audio delivery, read `docs/VERCEL_HOBBY_TRAFFIC_FIX.md`.
 5. If touching sync or comments/wishes/devices/rankings, read the relevant Supabase docs and migrations.
 6. If touching Telegram `/help`, remember the website does not automatically update the bot running on `news-vm`.
+
+## 2026-10-09 news-vm Codex 情節閱讀正式整合
+
+- 使用者在短／長集評估後要求繼續；07:52完成指定模組部署。正式 `prepare_episode_facts` 改接 `codex_facts.py`，新書生成及 `/book_regen` 同入口使用news-vm GPT-6.1 Sol/high兩輪原圖／完整TXT閱讀；Notebook繼續負責語音摘要。舊Notebook抽取函式僅保留測試，無自動fallback。
+- 獨立固定CLI0.161.0安裝於 `~/.local/share/nblm-codex-cli`，沿用VM ChatGPT登入；不使用API key、不改全域CLI或其他用途預設模型。第一輪完整抽取、第二輪回讀原書並同次產生完整修正JSON與每案voice_notes；完整紀錄不受舊2600字卡限制，voice提示2400、整份prompt本地12000上限，超出或未解辨讀疑義就停止，不截尾。
+- 新版真實QBQ EP03兩輪共82537token（71967input、10570output，cached24576為input子集）、303.8秒；四案例voice887字、整份prompt2433字。回查修正玻璃1.5乘1公尺、移除來源未記載咳嗽，補回Deb Weber及反覆業務員提問；代理目視原六張圖核對核心情節，不宣稱逐字／普遍無誤或語音驗收。
+- 相同來源／規格重生與只改語音風格重跑均0新增模型呼叫。key不含語音基底，含來源、流程版本、模型／推理、CLI版本／路徑、render與兩輪prompt／voice預算；答案／完整紀錄雜湊驗證、防重複flock、失敗stage先reconciliation。不能直接重用舊Notebook錯稿。
+- 既有生成／重生保護維持，準備失敗不刪tile或送音訊；CDP填入及送出前逐字核對整份prompt，截短／改動就不點生成。部署前及部署後各222測試通過，安裝後快取確認0呼叫；收據見 `work/codex_facts_integration_20261009/post_deploy_receipt.json`。
+- 備份 `/home/vboxuser/nblm-account-backups/codex_episode_facts_20261009_075238`；bot恢復active、queue空、52本既有audio_prompts未改。本輪未生成音訊、替換Drive、批次重製、發Telegram或commit/push。詳細規則 `docs/EPISODE_FACTS.md`、可追蹤模組 `tools/vm_episode_facts/`，本地收據 `work/codex_facts_integration_20261009/`。此部署取代下方歷史「尚未接CLI產線」狀態。
+
+## 2026-10-09 QBQ Codex CLI 情節抽取評估
+
+- 使用者接受 Notebook 分析／推論，要求不偏離作者原意，並指定 news-vm Codex CLI，不走本機或另付費API。隔離CLI0.161.0可用gpt-6.1-sol/high；正式產線尚未改接CLI。
+- QBQ短EP03／長EP08兩輪原圖閱讀實測81,313／111,993 token、466.1／532.4秒；核對稿2796／3903字元。代理另讀原頁確認核心情節，回查修正數字與內心想法／口頭發言混淆。兩集結果快取重跑0新增模型呼叫，指紋變更失效及答案完整性已驗證。
+- 週用量觀察24%→25%，共用帳號且取整，不能作每本精確額度；九集量級粗估73–101萬token、70–80分鐘閱讀，未包含語音／重試。精簡提示詞本身尚無同集A/B節省證據。
+- 下一步整合需分開完整核對紀錄與語音用關鍵情節提示，解決現有2600字元限制，保留角色、順序、間隔、否定與轉折，不截尾。原文特殊句須連同上下文解讀，不把孤立引句反轉成作者原則。
+- 詳細證據及限制見 `docs/EPISODE_FACTS.md`、`work/qbq_codex_benchmark_20261008/ASSESSMENT.md`。本輪只評估讀書／回查／快取，沒有生成新語音、替換Drive、部署或提交git。

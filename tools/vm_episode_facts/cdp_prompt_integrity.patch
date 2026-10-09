@@ -1,0 +1,35 @@
+--- book_audio/cdp.py
++++ book_audio/cdp.py
+@@ -979,7 +979,7 @@
+   setter.call(ta, text);
+   ta.dispatchEvent(new Event('input', {bubbles:true}));
+   ta.dispatchEvent(new Event('change', {bubbles:true}));
+-  return ta.value.length > 50;
++  return ta.value.length > 50 && ta.value === text;
+ })(""" + json.dumps(prompt, ensure_ascii=False) + ")")
+         if not filled:
+             log("  \u26a0\ufe0f \u63d0\u793a\u8a5e\u586b\u5165\u9a57\u8b49\u5931\u6557\uff0c\u653e\u68c4\u672c\u96c6")
+@@ -988,8 +988,10 @@
+         # Generate button is scoped to the audio customization dialog. NotebookLM
+         # also exposes a "稍後生成" action, so substring matching is unsafe.
+         gen = await self.cdp.js(r"""
+-(function(){
++(function(text){
+   var ta = """ + AUDIO_TA + r""";
++  // React/DOM may truncate after input. Validate and click in the same task.
++  if (!ta || ta.value !== text) return {ok:false, labels:[], prompt_changed:true};
+   var scope = ta ? (ta.closest('mat-dialog-container, [role=dialog], nb-audio-dialog') || document) : document;
+   var btns = Array.from(scope.querySelectorAll('button')).filter(b=>b.offsetParent);
+   function label(b) { return (b.innerText || b.textContent || '').replace(/\s+/g, '').trim(); }
+@@ -1000,8 +1002,10 @@
+   });
+   if (el) { var text = label(el); el.click(); return {ok:true, label:text}; }
+   return {ok:false, labels:btns.map(label).filter(Boolean)};
+-})()""")
++})(""" + json.dumps(prompt, ensure_ascii=False) + ")")
+         if not (gen or {}).get("ok"):
++            if (gen or {}).get("prompt_changed"):
++                log("  Audio prompt changed after filling; submission stopped")
+             self.last_generate_labels = list((gen or {}).get("labels") or [])
+             log(f"  \u26a0\ufe0f \u627e\u4e0d\u5230\u7cbe\u78ba\u7684\u7acb\u5373\u751f\u6210\u6309\u9215\uff1a{(gen or {}).get('labels')}")
+             return False
