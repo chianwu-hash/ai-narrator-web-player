@@ -1,5 +1,11 @@
 # 每集來源情節抽取與回查
 
+## 最新規則：2026-10-10 晚間取消正式產線情節調查
+
+使用者要求所有來源（HyRead／TXT／文字層PDF／掃描PDF）均移除 Codex 抽取與回查。新生成與 `/book_regen` 的共同入口只準備語音提示：保留基底通用規則、清除舊自動情節附註；掃描PDF仍加一次既有開場警語。文字來源保存 `source_prompt_receipt.json`（`verification=skipped_by_policy`、`codex_calls=0`），掃描收據維持既有格式。舊失敗／成功紀錄不刪，不再因其疑義或待 reconciliation 擋住新入口。不自動重新啟動已停止的書籍，也不修改已交付音訊。
+
+以下是歷史流程與試驗紀錄；其中「文字來源保留Codex」及兩輪必經要求已由上述最新規則取代。目前主線以 [BOOK_AUDIO_MAINLINE.md](BOOK_AUDIO_MAINLINE.md) 為準。
+
 適用：Gemini Notebook 書籍／教材說書產線。正式入口位於 news-vm `/home/vboxuser/nblm-audio/book_audio/episode_facts.py`，由 `pipeline.py` 的語音提交與指定集重生流程呼叫。2026-10-09 新版入口改接同VM的 `codex_facts.py`；Notebook仍負責語音摘要，原書情節不再由Notebook聊天抽取。2026-10-10 使用者決定掃描影像PDF跳過Codex，改用開場警語提示；可靠文字線保留Codex，詳下節。
 
 ## 2026-10-10 掃描影像分流與開場警語

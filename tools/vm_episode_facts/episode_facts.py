@@ -187,7 +187,7 @@ async def prepare_notebook_episode_facts(nb, book, ep):
 
 
 async def prepare_episode_facts(nb, book, ep):
-    """Image PDFs use a spoken warning; text sources retain CLI source recheck."""
+    """Prepare source prompts without model extraction or recheck calls."""
     sources = [p for p in (book.dir/'sources').glob(f'ep{ep:02d}_content.*')
                if p.suffix in ['.pdf', '.txt']]
     if len(sources) != 1:
@@ -197,8 +197,28 @@ async def prepare_episode_facts(nb, book, ep):
         from .scanpdf import is_text_pdf
         if not is_text_pdf(source):
             return prepare_scan_warning(book, ep, source)
-    from .codex_facts import prepare_codex_episode_facts
-    return await prepare_codex_episode_facts(book, ep)
+    return prepare_source_prompt(book, ep, source)
+
+
+def prepare_source_prompt(book, ep, source):
+    """Keep the original audio instructions; remove retired facts and warnings."""
+    name = f'EP{ep:02d}'
+    path = book.dir/'audio_prompts.json'
+    current = json.loads(path.read_text(encoding='utf-8'))
+    prompt = base_prompt(current[name])
+    if len(prompt) > 12000:
+        raise EpisodeFactsError('Audio prompt exceeds safety limit; no truncation')
+    if current[name] != prompt:
+        current[name] = prompt
+        atomic_write(path, json.dumps(current, ensure_ascii=False, indent=1))
+    receipt = dict(version='source-prompt-no-facts-v1', source=source.name,
+                   source_sha256=sha(source.read_bytes()),
+                   prompt_sha256=sha(prompt.encode('utf-8')),
+                   verification='skipped_by_policy', codex_calls=0,
+                   audio_quality_verified=False)
+    atomic_write(book.dir/'episode_facts'/name/'source_prompt_receipt.json',
+                 json.dumps(receipt, ensure_ascii=False, indent=2))
+    return receipt
 
 
 def prepare_scan_warning(book, ep, source):

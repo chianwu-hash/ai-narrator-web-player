@@ -1,3 +1,11 @@
+## 2026-10-10 晚間：正式製書全面取消 Codex 情節調查
+
+使用者明確要求把 Codex 驗證移出產線。原因：大谷翔平：武士初心第一集原文約22809字，兩輪1231.1秒／145695 tokens，第二輪對來源未交代或事件順序等4項疑義触發嚴格停止，stage=episode_facts_failed，0語音；程序已退出、queue/inflight空。這是單集成本，不能當全書實測。進度缺口與終止未回報仍是待修事項，這輪沒有修改Telegram報錯機制。
+
+最新規則取代「文字來源仍保留Codex」：新製書與book_regen共同prepare_episode_facts入口，TXT／文字層PDF直接保留基底語音提示（原書優先、通用說書規則），清除舊自動情節附註／掃描警語，保存source_prompt_receipt.json（verification=skipped_by_policy、codex_calls=0、audio_quality_verified=false）；掃描PDF沿用既有文字層抽樣判斷並加一次原開場警語，不呼叫Codex。舊Codex工具、成功／失敗／待reconciliation紀錄均保留但正式入口不讀，不退回Notebook聊天抽取。新入口仍檢查來源唯一、提示长度，不自動重啟已停止的書或改已交付音訊。
+
+已部署news-vm共同模組，backup=/home/vboxuser/nblm-account-backups/remove_codex_facts_20261010_221008，module SHA256=9063b937bdbc50642d6ff08671b66f092f2e3d94acc03bea68b065a638ae1cee。24歷史情節／入口保護+4新分流測試通過，安裝後4分流再通過；模型0呼叫，沒有新音訊、Drive變更或bot重啟。額外未修改的DOM測試因該venv缺Playwright未能執行，沒有新增依賴。VM其他dirty檔案保留，未pull／重置或commit push。這次停下的書仍需從斷點回復，部署本身不續作。權威流程docs/BOOK_AUDIO_MAINLINE.md。
+
 # Operations Log
 
 ## 2026-10-10 掃描影像提示詞警語及Codex分流

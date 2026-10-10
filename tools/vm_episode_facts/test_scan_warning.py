@@ -37,16 +37,27 @@ class Tests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(receipt['verification'], 'skipped_image_pdf')
         self.assertFalse(receipt['audio_quality_verified'])
 
-    async def test_text_sources_keep_cli_and_strip_prior_warning(self):
+    async def test_text_pdf_skips_cli_and_strips_prior_facts(self):
         with patch('book_audio.scanpdf.is_text_pdf', return_value=True), \
              patch('book_audio.codex_facts.prepare_codex_episode_facts', new_callable=AsyncMock) as cli:
-            await f.prepare_episode_facts(None, self.book, 1)
-            cli.assert_awaited_once_with(self.book, 1)
+            receipt = await f.prepare_episode_facts(None, self.book, 1)
+            cli.assert_not_awaited()
+        self.assertEqual(receipt['verification'], 'skipped_by_policy')
+        self.assertEqual(receipt['codex_calls'], 0)
+        self.assertEqual(json.loads(self.path.read_text())['EP01'], 'Base')
+
+    async def test_text_regen_removes_old_warning_without_cli(self):
         self.source.unlink()
         (self.root/'sources/ep01_content.txt').write_text('Original', encoding='utf-8')
+        self.path.write_text(json.dumps({'EP01': 'Base\n'+f.SCAN_START+'\nWarning',
+                                         'EP02': 'Other'}), encoding='utf-8')
         with patch('book_audio.codex_facts.prepare_codex_episode_facts', new_callable=AsyncMock) as cli:
             await f.prepare_episode_facts(None, self.book, 1)
-            cli.assert_awaited_once_with(self.book, 1)
+            first = self.path.read_bytes()
+            await f.prepare_episode_facts(None, self.book, 1)
+            self.assertEqual(first, self.path.read_bytes())
+            cli.assert_not_awaited()
+        self.assertEqual(json.loads(first), {'EP01': 'Base', 'EP02': 'Other'})
         self.assertEqual(f.base_prompt('Base\n'+f.SCAN_START+'\nWarning'), 'Base')
 
     async def test_ambiguous_source_preserves_prompt(self):
