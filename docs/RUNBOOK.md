@@ -32,6 +32,7 @@ Before operational changes:
 | news-vm Codex CLI 原書情節閱讀／回查、語音提示編排及重生快取 | `docs/EPISODE_FACTS.md`、`tools/vm_episode_facts/README.md` |
 | Gemini TTS fiction audiobook SOP | `docs/GEMINI_TTS_FICTION_AUDIOBOOK_SOP.md` |
 | Qwen3 voice clone MVP | `docs/QWEN3_TTS_VOICE_CLONE_MVP.md` |
+| AI 說書人目前製書主線、文字／掃描分流與開場警語 | `docs/BOOK_AUDIO_MAINLINE.md`、`docs/EPISODE_FACTS.md` |
 
 ## Production audio delivery rule
 

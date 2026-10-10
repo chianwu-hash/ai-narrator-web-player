@@ -1,5 +1,14 @@
 # Project Memory
 
+## 2026-10-10 掃描影像製書分流與提示詞警語（已部署）
+
+- 目前Notebook主線步驟與來源分流以 `docs/BOOK_AUDIO_MAINLINE.md` 為準；原文ElevenLabs獨立線不混入此入口。
+
+- 使用者定案：保留PDF原圖製書，但此線跳過Codex情節抽取／回查，接受成本與品質限制；可靠全文文字線保留Codex。此決策取代先前「所有PDF均跑兩輪Codex」規則。
+- 不用後製插警語。每集提示詞要求一位主持人在開場正文前完整照唸一次：「本集由 AI 依原書掃描影像製作，文字辨識與情節轉述可能有誤；涉及人物、事件與細節，請以原書為準。」使用者回聽發現缺漏則 `/book_regen`，不新增自動語音驗收。
+- news-vm共同入口episode_facts.py已部署：PDF經既有scanpdf.is_text_pdf判為掃描則跳過CLI，TXT／文字層PDF保留CLI；抽樣文字層檢查不等於可靠全文保證。每次生成／重生清除舊附註後重新編排，避免警語重複。跳過收據標skipped_image_pdf／codex_calls=0／audio_quality_verified=false。
+- 備份news-vm `/home/vboxuser/nblm-account-backups/scan_warning_20261010_203430`；24項情節回歸＋3項分流測試通過，正式安裝3項通過。無模型查詢／新音訊／Drive改動／bot重啟；bot active。詳docs/EPISODE_FACTS.md。
+
 Last reviewed: 2026-08-08
 
 This file records durable project knowledge for AI assistants. It is not a full chat transcript. Repository memory files are the source of truth for future Codex / Claude sessions.

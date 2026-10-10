@@ -1,5 +1,12 @@
 # Operations Log
 
+## 2026-10-10 掃描影像提示詞警語及Codex分流
+
+- 按使用者要求保留PDF原圖線但跳過Codex，開場警語由Notebook按提示詞照唸，不後製；缺漏由使用者 `/book_regen`。
+- 只替換news-vm book_audio/episode_facts.py並增加tests/test_scan_warning.py；既有dirty模組均保留。比對Git基線、確認無製書worker，先隔離stage測試再安裝。24項情節回歸及3項分流測試通過，安裝後3項通過。
+- 備份 `/home/vboxuser/nblm-account-backups/scan_warning_20261010_203430`；module SHA256 97421f2fdda684074aa4f972fdb4e1916344131ec0932b3a2c66c065968fa17f。service仍active，未重啟、未生成音訊、未呼叫模型、未修改Drive或既有書prompt。
+- PDF以既有文字層抽樣門檻分流，TXT及文字層PDF留Codex；分類不是全文品質驗收。掃描警語收據不可稱來源／語音已核實；不批次重生舊書。詳docs/EPISODE_FACTS.md與tools/vm_episode_facts/test_scan_warning.py。
+
 ## 2026-10-06 夜間背景同步 bug 本機修正（未部署）
 
 - 追加授權 Claude review 後 commit push；chat-mode CLI 2.1.288 OAuth 兩輪完成（session20261006-sync-bug-review），Git baseline無變動，結論無阻擋缺陷。保留既有pairing競態、CI React coverage及真browser/DB/CAS缺口，未擴大修正。只提交本次變更；正式promote不在授權範圍。

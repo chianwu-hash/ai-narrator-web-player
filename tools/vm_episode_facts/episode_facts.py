@@ -13,6 +13,8 @@ from pathlib import Path
 
 VERSION = 'episode-facts-v1'
 START = '【本集自動抽取的情節紀錄】'
+SCAN_START = '【掃描影像來源開場提醒】'
+SCAN_WARNING = '本集由 AI 依原書掃描影像製作，文字辨識與情節轉述可能有誤；涉及人物、事件與細節，請以原書為準。'
 MAX_CARD_CHARS = 2600
 MAX_CHAT_CHARS = 3500
 
@@ -96,7 +98,7 @@ def parse_response(raw, kind):
     return validate(candidates[-1], kind)
 
 def base_prompt(prompt):
-    return prompt.split(START, 1)[0].rstrip()
+    return prompt.split(START, 1)[0].split(SCAN_START, 1)[0].rstrip()
 
 def source_selected(checked, filename):
     # checked_sources includes UI icon labels surrounding the filename.
@@ -185,6 +187,45 @@ async def prepare_notebook_episode_facts(nb, book, ep):
 
 
 async def prepare_episode_facts(nb, book, ep):
-    """Production uses the VM CLI; never silently fall back to Notebook extraction."""
+    """Image PDFs use a spoken warning; text sources retain CLI source recheck."""
+    sources = [p for p in (book.dir/'sources').glob(f'ep{ep:02d}_content.*')
+               if p.suffix in ['.pdf', '.txt']]
+    if len(sources) != 1:
+        raise EpisodeFactsError('Episode content source missing or ambiguous')
+    source = sources[0]
+    if source.suffix == '.pdf':
+        from .scanpdf import is_text_pdf
+        if not is_text_pdf(source):
+            return prepare_scan_warning(book, ep, source)
     from .codex_facts import prepare_codex_episode_facts
     return await prepare_codex_episode_facts(book, ep)
+
+
+def prepare_scan_warning(book, ep, source):
+    name = f'EP{ep:02d}'
+    path = book.dir/'audio_prompts.json'
+    original = json.loads(path.read_text(encoding='utf-8'))
+    base = base_prompt(original[name])
+    prompt = base+'\n\n'+SCAN_START+'\n'+(
+        '本集使用掃描影像來源，未經獨立情節核對。請在開場、正式內容開始前，'
+        '由一位主持人完整照唸以下提醒一次，不省略、不改寫、不互相討論這段提醒；'
+        '接著自然進入本集內容。這項開場要求優先於其他省略製作流程的要求。\n'
+        '「'+SCAN_WARNING+'」\n'
+        '仍須忠於原書；辨讀不清的細節不要猜測或補寫。')
+    if len(prompt) > 12000:
+        raise EpisodeFactsError('Audio prompt exceeds safety limit; no truncation')
+    source_hash = sha(source.read_bytes())
+    current = json.loads(path.read_text(encoding='utf-8'))
+    if base_prompt(current[name]) != base:
+        raise EpisodeFactsError('Audio base prompt changed while preparing warning')
+    if current[name] != prompt:
+        current[name] = prompt
+        atomic_write(path, json.dumps(current, ensure_ascii=False, indent=1))
+    receipt = dict(version='scan-warning-v1', source=source.name,
+                   source_sha256=source_hash, prompt_sha256=sha(prompt.encode('utf-8')),
+                   verification='skipped_image_pdf', codex_calls=0,
+                   warning_delivery='audio_prompt', warning_text=SCAN_WARNING,
+                   audio_quality_verified=False)
+    atomic_write(book.dir/'episode_facts'/name/'scan_warning_receipt.json',
+                 json.dumps(receipt, ensure_ascii=False, indent=2))
+    return receipt

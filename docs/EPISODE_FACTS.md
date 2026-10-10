@@ -1,8 +1,17 @@
 # 每集來源情節抽取與回查
 
-適用：Gemini Notebook 書籍／教材說書產線。正式入口位於 news-vm `/home/vboxuser/nblm-audio/book_audio/episode_facts.py`，由 `pipeline.py` 的語音提交與指定集重生流程呼叫。2026-10-09 新版入口改接同VM的 `codex_facts.py`；Notebook仍負責語音摘要，原書情節不再由Notebook聊天抽取。
+適用：Gemini Notebook 書籍／教材說書產線。正式入口位於 news-vm `/home/vboxuser/nblm-audio/book_audio/episode_facts.py`，由 `pipeline.py` 的語音提交與指定集重生流程呼叫。2026-10-09 新版入口改接同VM的 `codex_facts.py`；Notebook仍負責語音摘要，原書情節不再由Notebook聊天抽取。2026-10-10 使用者決定掃描影像PDF跳過Codex，改用開場警語提示；可靠文字線保留Codex，詳下節。
 
-## 流程
+## 2026-10-10 掃描影像分流與開場警語
+
+- 原圖PDF製書入口保留。每集內容為PDF且既有 `scanpdf.is_text_pdf` 未檢出足量文字層時，跳過Codex情節抽取與回查，不做OCR、不默默退回Notebook情節抽取。TXT及檢出文字層的PDF保留原Codex流程。既有文字層判斷是抽樣字數門檻，不是全文正確性驗收，也不能認定OCR文字層可靠。
+- 警語只放語音提示詞，要求一位主持人在開場、正文前完整照唸一次，不省略、不改寫；不後製插入音訊。固定文字：「本集由 AI 依原書掃描影像製作，文字辨識與情節轉述可能有誤；涉及人物、事件與細節，請以原書為準。」
+- 每次提交及 `/book_regen` 共用入口，去掉前次附加的情節紀錄／警語，再編排一次，保留基底提示及其他集；不批次改已交付音訊。警語未唸時由使用者發現後執行 `/book_regen`，目前不新增自動警語音訊驗收。
+- `episode_facts/EPnn/scan_warning_receipt.json` 明記 `verification=skipped_image_pdf`、`codex_calls=0`、`warning_delivery=audio_prompt`、來源及提示雜湊、`audio_quality_verified=false`。不把警語當品質改善或保證。
+
+## 文字來源的 Codex 流程
+
+整體接單、分集、配樂與交付順序見 [BOOK_AUDIO_MAINLINE.md](BOOK_AUDIO_MAINLINE.md)。以下步驟只適用保留 Codex 的來源；掃描影像來源按上一節分流。
 
 1. 送出語音前取得本機唯一的 `epNN_content.pdf` 或 `.txt`，導覽、context及其他集不參與閱讀。PDF用pdftoppm完整轉成2400px掃描圖，TXT完整傳入，不以未核實OCR代替原頁。
 2. 第一輪由news-vm Codex CLI固定通用提問，抽取故事／案例／小說情節：角色分工、事件順序、間隔、否定、轉折、更正、澄清與短原句位置。使用全新ephemeral session，不給歷史答案。
